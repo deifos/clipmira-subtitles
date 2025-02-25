@@ -192,7 +192,8 @@ async function handleRun({
     const result = await pipelineInstance(audio, {
       language,
       return_timestamps: "word",
-      chunk_length_s: 30,
+      chunk_length_s: 15,
+      stride_length_s: 2,
       // Transcription doesn't support progress callbacks in the same way
       // We'll rely on the completion event instead
     });

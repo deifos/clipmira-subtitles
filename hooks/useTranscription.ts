@@ -170,13 +170,22 @@ export function useTranscription() {
       console.log("Starting transcription...");
 
       // Set up a progress ticker for transcription phase when no progress events
+      const lastProgressUpdate = { value: Date.now() };
       const progressTicker = setInterval(() => {
+        const now = Date.now();
+        // Increase progress more quickly in the first 20 seconds to show activity
+        const initialBoost = now - lastProgressUpdate.value > 5000 ? 1 : 0.5;
+        lastProgressUpdate.value = now;
+
         setProgress((prev) => {
-          if (prev >= 85) {
+          // Boost initial progress to show activity
+          if (prev < 60) {
+            return Math.min(60, prev + initialBoost);
+          } else if (prev >= 85) {
             clearInterval(progressTicker);
             return prev;
           }
-          return prev + 0.5;
+          return prev + 0.3;
         });
       }, 1000);
 
