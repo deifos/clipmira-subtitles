@@ -4,6 +4,7 @@ import { useCallback, useState, forwardRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { VideoCaption } from "./video-caption";
 import { SubtitleStyle } from "./subtitle-styling";
+import { UploadIcon } from "lucide-react";
 
 interface VideoUploadProps {
   onVideoSelect: (file: File) => void;
@@ -142,7 +143,8 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
             <p className="mb-2">
-              Drag and drop a video file here, or click to select
+              Drag and drop a video file here, or click to select{" "}
+              <UploadIcon className="mx-auto mt-8" />
             </p>
             <p className="text-xs text-muted-foreground">
               Supports MP4 and WebM formats, max 5 minutes
