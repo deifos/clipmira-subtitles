@@ -1,20 +1,21 @@
-import { useMemo } from "react";
+"use client";
+
 import { SubtitleStyle } from "./subtitle-styling";
 import { processTranscriptChunks } from "@/lib/utils";
-
-interface TranscriptChunk {
-  text: string;
-  timestamp: [number, number];
-}
+import { cn } from "@/lib/utils";
 
 interface VideoCaptionProps {
   transcript: {
     text: string;
-    chunks: TranscriptChunk[];
+    chunks: Array<{
+      text: string;
+      timestamp: [number, number];
+    }>;
   };
   currentTime: number;
   style: SubtitleStyle;
   mode: "word" | "phrase";
+  ratio: "16:9" | "9:16";
 }
 
 export function VideoCaption({
@@ -22,58 +23,69 @@ export function VideoCaption({
   currentTime,
   style,
   mode,
+  ratio,
 }: VideoCaptionProps) {
-  const currentChunks = useMemo(() => {
-    // Process chunks according to the current mode
-    const processedChunks = processTranscriptChunks(transcript, mode);
+  const processedChunks = processTranscriptChunks(transcript, mode);
+  const currentChunks = processedChunks.filter(
+    (chunk) =>
+      currentTime >= chunk.timestamp[0] && currentTime <= chunk.timestamp[1]
+  );
 
-    // Find chunks that match the current time
-    return processedChunks.filter((chunk) => {
-      const [start, end] = chunk.timestamp;
-      return currentTime >= start && currentTime < end;
-    });
-  }, [transcript, currentTime, mode]);
+  if (currentChunks.length === 0) return null;
 
-  if (currentChunks.length === 0) {
-    return null;
-  }
+  const text = currentChunks.map((chunk) => chunk.text).join(" ");
+  const words = text.split(" ");
+  const midpoint = Math.ceil(words.length / 2);
 
-  // Create text-shadow for text outline effect
-  const getTextShadow = () => {
-    if (style.borderWidth <= 0) return "none";
-
-    const color = style.borderColor;
-
-    // Create a simpler text stroke effect using -webkit-text-stroke
-    // For browsers that don't support it, we'll use a simplified text-shadow as fallback
-    return `-1px -1px 0 ${color}, 1px -1px 0 ${color}, -1px 1px 0 ${color}, 1px 1px 0 ${color}`;
-  };
-
-  const text = currentChunks.map((chunk) => chunk.text.trim()).join(" ");
-
-  if (!text) {
-    return null;
-  }
+  // Split text into two lines if in portrait mode or text is long
+  const shouldSplitText = ratio === "9:16" || words.length > 8;
+  const line1 = shouldSplitText ? words.slice(0, midpoint).join(" ") : text;
+  const line2 = shouldSplitText ? words.slice(midpoint).join(" ") : "";
 
   return (
-    <div className="absolute bottom-16 left-0 right-0 flex justify-center pointer-events-none">
+    <div
+      className={cn(
+        "absolute left-1/2 -translate-x-1/2 text-center",
+        ratio === "16:9"
+          ? "bottom-[16%] w-[90%]" // Landscape mode
+          : "bottom-[8%] w-[85%]" // Portrait mode
+      )}
+      style={{
+        fontFamily: style.fontFamily,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+      }}
+    >
       <div
-        className="px-4 py-2 rounded-md text-center max-w-[90%]"
+        className="inline-block px-3 py-2 rounded-lg"
         style={{
-          fontFamily: style.fontFamily,
-          fontSize: style.fontSize,
-          fontWeight: style.fontWeight,
-          color: style.color,
           backgroundColor: style.backgroundColor,
-          textShadow: getTextShadow(),
-          WebkitTextStroke:
-            style.borderWidth > 0
-              ? `${style.borderWidth}px ${style.borderColor}`
-              : "none",
-          letterSpacing: style.borderWidth > 2 ? "0.5px" : "normal", // Add letter spacing for better readability with thick borders
         }}
       >
-        {text}
+        <div className="flex flex-col gap-1">
+          <span
+            style={{
+              color: style.color,
+              textShadow: style.borderWidth
+                ? `${style.borderWidth}px ${style.borderWidth}px ${style.borderWidth}px ${style.borderColor}`
+                : undefined,
+            }}
+          >
+            {line1}
+          </span>
+          {line2 && (
+            <span
+              style={{
+                color: style.color,
+                textShadow: style.borderWidth
+                  ? `${style.borderWidth}px ${style.borderWidth}px ${style.borderWidth}px ${style.borderColor}`
+                  : undefined,
+              }}
+            >
+              {line2}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

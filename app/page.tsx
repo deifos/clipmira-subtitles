@@ -45,6 +45,7 @@ export default function Home() {
   const [uploadKey, setUploadKey] = useState(0);
   const [showApp, setShowApp] = useState(false);
   const [mode, setMode] = useState<"word" | "phrase">("word");
+  const [ratio, setRatio] = useState<"16:9" | "9:16">("16:9");
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const {
@@ -66,6 +67,7 @@ export default function Home() {
     setStatus,
     setProgress,
     mode,
+    ratio,
   });
 
   // Function to handle video reset and upload another
@@ -187,6 +189,8 @@ export default function Home() {
                     subtitleStyle={subtitleStyle}
                     mode={mode}
                     onModeChange={setMode}
+                    ratio={ratio}
+                    onRatioChange={setRatio}
                   />
 
                   {result && (

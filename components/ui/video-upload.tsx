@@ -22,6 +22,8 @@ interface VideoUploadProps {
   subtitleStyle: SubtitleStyle;
   mode: "word" | "phrase";
   onModeChange: (mode: "word" | "phrase") => void;
+  ratio: "16:9" | "9:16";
+  onRatioChange: (ratio: "16:9" | "9:16") => void;
 }
 
 export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
@@ -35,6 +37,8 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       subtitleStyle,
       mode,
       onModeChange,
+      ratio,
+      onRatioChange,
     },
     ref
   ) => {
@@ -125,7 +129,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
         {videoSrc ? (
           <div className="relative flex flex-col items-center justify-center w-full h-full">
             {transcript && (
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex flex-col gap-2">
                 <Tabs
                   defaultValue={mode}
                   onValueChange={(v) => onModeChange(v as "word" | "phrase")}
@@ -135,13 +139,25 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
                     <TabsTrigger value="phrase">Phrases</TabsTrigger>
                   </TabsList>
                 </Tabs>
+                <Tabs
+                  defaultValue={ratio}
+                  onValueChange={(v) => onRatioChange(v as "16:9" | "9:16")}
+                >
+                  <TabsList className="grid w-[400px] grid-cols-2">
+                    <TabsTrigger value="16:9">Landscape (16:9)</TabsTrigger>
+                    <TabsTrigger value="9:16">Portrait (9:16)</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
             )}
             <video
               ref={ref}
               src={videoSrc}
               controls
-              className="w-full max-h-[500px] object-contain"
+              className={cn(
+                "max-h-[500px] object-contain",
+                ratio === "16:9" ? "w-full" : "w-auto h-full"
+              )}
               onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
             />
             {transcript && (
@@ -150,6 +166,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
                 currentTime={currentTime}
                 style={subtitleStyle}
                 mode={mode}
+                ratio={ratio}
               />
             )}
           </div>
