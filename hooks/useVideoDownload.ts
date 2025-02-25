@@ -38,7 +38,7 @@ export function useVideoDownload({
     const originalCurrentTime = videoRef.current.currentTime;
     const originalPaused = videoRef.current.paused;
 
-    setStatus("transcribing");
+    setStatus("processing");
     setProgress(50);
 
     // Create canvas and context for rendering

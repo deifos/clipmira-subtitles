@@ -3,9 +3,9 @@ import { extractAudioFromVideo } from "@/lib/audio-utils";
 
 export type TranscriptionStatus =
   | "idle"
-  | "loading"
-  | "extracting"
+  | "uploading"
   | "transcribing"
+  | "processing"
   | "ready";
 
 export interface TranscriptionResult {
@@ -16,12 +16,12 @@ export interface TranscriptionResult {
   }>;
 }
 
-export const STATUS_MESSAGES = {
-  idle: "",
-  loading: "Loading Whisper model...",
-  extracting: "Extracting audio from video...",
-  transcribing: "Transcribing audio... This may take a few minutes",
-  ready: "Done!",
+export const STATUS_MESSAGES: Record<TranscriptionStatus, string> = {
+  idle: "Ready to start",
+  uploading: "Uploading video...",
+  transcribing: "Transcribing audio...",
+  processing: "Processing video...",
+  ready: "Ready",
 };
 
 export function useTranscription() {
