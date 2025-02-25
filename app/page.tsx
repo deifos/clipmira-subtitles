@@ -5,7 +5,7 @@ import { VideoUpload } from "@/components/ui/video-upload";
 import { extractAudioFromVideo } from "@/lib/audio-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
-import { Transcript } from "@/components/ui/transcript";
+import { TranscriptSidebar } from "@/components/ui/transcript-sidebar";
 
 type TranscriptionStatus =
   | "idle"
@@ -177,53 +177,54 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="max-w-2xl w-full space-y-8">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-bold">Video Subtitle Generator</h1>
+    <main className="flex min-h-screen flex-col items-center p-4 md:p-8">
+      <div className="w-full max-w-7xl space-y-6">
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl md:text-4xl font-bold">
+            Video Subtitle Generator
+          </h1>
           <p className="text-gray-500">
             Upload a video (MP4 or WebM) to generate subtitles using AI
           </p>
         </div>
 
-        <div className="space-y-8">
-          <VideoUpload
-            className="w-full"
-            onVideoSelect={handleVideoSelect}
-            ref={videoRef}
-            onTimeUpdate={(time) => setCurrentTime(time)}
-          />
+        {status !== "idle" && (
+          <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground">
+            {status !== "ready" && <Loader2 className="h-4 w-4 animate-spin" />}
+            <p>{STATUS_MESSAGES[status]}</p>
+          </div>
+        )}
 
-          {status !== "idle" && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 justify-center text-sm text-muted-foreground">
-                {status !== "ready" && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                <p>{STATUS_MESSAGES[status]}</p>
-              </div>
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="flex-1">
+            <VideoUpload
+              className="w-full"
+              onVideoSelect={handleVideoSelect}
+              ref={videoRef}
+              onTimeUpdate={(time) => setCurrentTime(time)}
+              transcript={result}
+              currentTime={currentTime}
+            />
+          </div>
 
-              {result && (
-                <div className="p-4 bg-muted rounded-lg">
-                  <Transcript
-                    transcript={result}
-                    currentTime={currentTime}
-                    setCurrentTime={(time) => {
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = time;
-                        setCurrentTime(time);
-                      }
-                    }}
-                    className="text-sm space-y-2"
-                  />
-                </div>
-              )}
+          {result && (
+            <div className="w-full lg:w-96 h-[500px] border rounded-lg overflow-hidden">
+              <TranscriptSidebar
+                transcript={result}
+                currentTime={currentTime}
+                setCurrentTime={(time) => {
+                  if (videoRef.current) {
+                    videoRef.current.currentTime = time;
+                    setCurrentTime(time);
+                  }
+                }}
+              />
             </div>
           )}
         </div>

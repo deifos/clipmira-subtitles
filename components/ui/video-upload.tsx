@@ -2,15 +2,27 @@
 
 import { useCallback, useState, forwardRef } from "react";
 import { cn } from "@/lib/utils";
+import { VideoCaption } from "./video-caption";
 
 interface VideoUploadProps {
   onVideoSelect: (file: File) => void;
   onTimeUpdate?: (time: number) => void;
   className?: string;
+  transcript?: {
+    text: string;
+    chunks: Array<{
+      text: string;
+      timestamp: [number, number];
+    }>;
+  } | null;
+  currentTime?: number;
 }
 
 export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
-  ({ onVideoSelect, onTimeUpdate, className }, ref) => {
+  (
+    { onVideoSelect, onTimeUpdate, className, transcript, currentTime = 0 },
+    ref
+  ) => {
     const [isDragging, setIsDragging] = useState(false);
     const [videoSrc, setVideoSrc] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -81,15 +93,8 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
       >
-        <input
-          type="file"
-          accept="video/*"
-          onChange={handleChange}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-        />
-
         {videoSrc ? (
-          <div className="flex items-center justify-center w-full h-full">
+          <div className="relative flex items-center justify-center w-full h-full">
             <video
               ref={ref}
               src={videoSrc}
@@ -97,9 +102,18 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
               className="w-full max-h-[500px] object-contain"
               onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
             />
+            {transcript && (
+              <VideoCaption transcript={transcript} currentTime={currentTime} />
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-10 text-center">
+            <input
+              type="file"
+              accept="video/*"
+              onChange={handleChange}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
             <p className="text-sm text-muted-foreground mb-2">
               Drag and drop a video file here, or click to select
             </p>
