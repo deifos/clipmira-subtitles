@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { formatTime, transcriptToSrt, transcriptToVtt } from "@/lib/utils";
 import { Button } from "./button";
 import { Edit } from "lucide-react";
@@ -31,6 +31,19 @@ export function TranscriptSidebar({
 }: TranscriptSidebarProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
+  const transcriptContainerRef = useRef<HTMLDivElement>(null);
+  const activeChunkRef = useRef<HTMLDivElement>(null);
+
+  // Add effect to scroll to active chunk when currentTime changes
+  useEffect(() => {
+    if (activeChunkRef.current && transcriptContainerRef.current) {
+      // Scroll the active chunk into view with smooth behavior
+      activeChunkRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }, [currentTime]);
 
   const jsonTranscript = useMemo(() => {
     return JSON.stringify(transcript, null, 2).replace(
@@ -108,7 +121,7 @@ export function TranscriptSidebar({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" ref={transcriptContainerRef}>
         <div className="space-y-2 p-2">
           {transcript.chunks.map((chunk, i) => {
             const [start, end] = chunk.timestamp;
@@ -118,6 +131,7 @@ export function TranscriptSidebar({
             return (
               <div
                 key={i}
+                ref={isActive ? activeChunkRef : null}
                 className={`p-2 rounded ${
                   isEditing ? "bg-muted" : "hover:bg-muted cursor-pointer"
                 } transition-colors ${
