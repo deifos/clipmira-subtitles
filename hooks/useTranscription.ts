@@ -20,7 +20,7 @@ export const STATUS_MESSAGES = {
   idle: "",
   loading: "Loading Whisper model...",
   extracting: "Extracting audio from video...",
-  transcribing: "Transcribing audio...",
+  transcribing: "Transcribing audio... This may take a few minutes",
   ready: "Done!",
 };
 
@@ -63,6 +63,9 @@ export function useTranscription() {
               // Scale progress from 0-1 to 30-90 (leaving room for loading and completion)
               const scaledProgress = 30 + e.data.data.progress * 60;
               setProgress(Math.min(90, scaledProgress));
+            } else {
+              // Ensure progress is always visible even without specific progress data
+              setProgress((prev) => Math.min(85, prev + 1));
             }
             break;
 
@@ -165,6 +168,18 @@ export function useTranscription() {
       // Start transcription
       setStatus("transcribing");
       console.log("Starting transcription...");
+
+      // Set up a progress ticker for transcription phase when no progress events
+      const progressTicker = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 85) {
+            clearInterval(progressTicker);
+            return prev;
+          }
+          return prev + 0.5;
+        });
+      }, 1000);
+
       worker.current.postMessage({
         type: "run",
         data: {
@@ -172,6 +187,9 @@ export function useTranscription() {
           language: "en",
         },
       });
+
+      // Clear the ticker if component unmounts
+      return () => clearInterval(progressTicker);
     } catch (err) {
       console.error("Error in handleVideoSelect:", err);
       if (err instanceof Error) {
@@ -221,6 +239,9 @@ export function useTranscription() {
             if (e.data.data && typeof e.data.data.progress === "number") {
               const scaledProgress = 30 + e.data.data.progress * 60;
               setProgress(Math.min(90, scaledProgress));
+            } else {
+              // Ensure progress is always visible
+              setProgress((prev) => Math.min(85, prev + 1));
             }
             break;
           case "complete":
