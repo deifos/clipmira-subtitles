@@ -121,7 +121,7 @@ export default function Home() {
                   </Button>
                   <div className="space-y-2">
                     <h3 className="text-2xl font-bold">
-                      Video Subtitle Generator
+                      Clipmira Subtitle Generator
                     </h3>
                     <p className="text-muted-foreground">
                       Upload a video (MP4 or WebM) to generate subtitles using
@@ -203,6 +203,14 @@ export default function Home() {
                 {result && (
                   <div className="w-full lg:w-96 h-[500px]">
                     <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-4 shadow-shadow">
+                      <div className="mb-4 pb-2 border-b border-border">
+                        <h4 className="text-lg font-semibold">
+                          Edit Transcript
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          Click on any segment to edit the text
+                        </p>
+                      </div>
                       <TranscriptSidebar
                         transcript={result}
                         currentTime={currentTime}
@@ -241,8 +249,7 @@ export default function Home() {
       <section className="w-full bg-gradient-to-r from-primary/10 to-primary/5 py-20">
         <div className="container mx-auto px-4 md:px-6 flex flex-col items-center text-center space-y-8">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-            Professional Subtitles{" "}
-            <span className="text-primary">in Minutes</span>
+            Clipmira <span className="text-primary">Subtitle Generator</span>
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl">
             Transform your videos with accurate, customizable subtitles powered
