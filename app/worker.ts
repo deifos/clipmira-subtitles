@@ -89,9 +89,20 @@ async function handleLoad({ device = "wasm" }: { device?: DeviceType }) {
       "onnx-community/whisper-base_timestamped",
       {
         ...deviceConfig,
-        progress_callback: (progress) => {
-          console.log("Worker: Progress update", progress);
-          self.postMessage(progress);
+        progress_callback: (progressInfo: any) => {
+          console.log("Worker: Model loading progress", progressInfo);
+          // Extract progress value or use a default
+          const progressValue =
+            typeof progressInfo === "number"
+              ? progressInfo
+              : progressInfo && typeof progressInfo.progress === "number"
+              ? progressInfo.progress
+              : 0;
+
+          self.postMessage({
+            status: "progress",
+            data: { progress: progressValue * 0.5 }, // Scale to 0-0.5 range for model loading phase
+          });
         },
       }
     );
@@ -155,11 +166,26 @@ async function handleRun({
     console.log("Worker: Beginning transcription");
     const start = performance.now();
 
-    // Run transcription
+    // Run transcription with progress updates
     const result = await pipelineInstance(audio, {
       language,
       return_timestamps: "word",
       chunk_length_s: 30,
+      // Use the proper configuration for progress updates
+      generate_callback: (progressInfo: any) => {
+        // Send progress updates to the main thread
+        const progressValue =
+          typeof progressInfo === "number"
+            ? progressInfo
+            : progressInfo && typeof progressInfo.progress === "number"
+            ? progressInfo.progress
+            : 0;
+
+        self.postMessage({
+          status: "progress",
+          data: { progress: progressValue },
+        });
+      },
     });
 
     const end = performance.now();

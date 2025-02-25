@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState, forwardRef } from "react";
+import { useCallback, useState, forwardRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { VideoCaption } from "./video-caption";
+import { SubtitleStyle } from "./subtitle-styling";
 
 interface VideoUploadProps {
   onVideoSelect: (file: File) => void;
@@ -16,16 +17,41 @@ interface VideoUploadProps {
     }>;
   } | null;
   currentTime?: number;
+  subtitleStyle: SubtitleStyle;
 }
 
 export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
   (
-    { onVideoSelect, onTimeUpdate, className, transcript, currentTime = 0 },
+    {
+      onVideoSelect,
+      onTimeUpdate,
+      className,
+      transcript,
+      currentTime = 0,
+      subtitleStyle,
+    },
     ref
   ) => {
     const [isDragging, setIsDragging] = useState(false);
     const [videoSrc, setVideoSrc] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+
+    // Reset video source when ref.current.src is empty
+    useEffect(() => {
+      if (ref && typeof ref !== "function" && ref.current) {
+        // Check if the video element has no source
+        if (!ref.current.src || ref.current.src === window.location.href) {
+          setVideoSrc(null);
+        }
+      }
+    }, [ref]);
+
+    // Reset state when component is mounted
+    useEffect(() => {
+      setVideoSrc(null);
+      setError(null);
+      setIsDragging(false);
+    }, []);
 
     const handleFile = useCallback(
       async (file: File) => {
@@ -75,6 +101,9 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) handleFile(file);
+
+        // Reset the input value to allow selecting the same file again
+        e.target.value = "";
       },
       [handleFile]
     );
@@ -82,7 +111,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
     return (
       <div
         className={cn(
-          "relative border-2 border-dashed rounded-lg transition-colors min-h-[100px] max-h-[500px] overflow-hidden",
+          "relative border-2 border-dashed rounded-lg transition-colors min-h-[300px] overflow-hidden",
           isDragging ? "border-primary" : "border-muted-foreground/25",
           className
         )}
@@ -103,7 +132,11 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
               onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
             />
             {transcript && (
-              <VideoCaption transcript={transcript} currentTime={currentTime} />
+              <VideoCaption
+                transcript={transcript}
+                currentTime={currentTime}
+                style={subtitleStyle}
+              />
             )}
           </div>
         ) : (
