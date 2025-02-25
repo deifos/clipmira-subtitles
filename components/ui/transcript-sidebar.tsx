@@ -20,6 +20,7 @@ interface TranscriptSidebarProps {
     chunks: TranscriptChunk[];
   }) => void;
   className?: string;
+  mode: "word" | "phrase";
 }
 
 export function TranscriptSidebar({
@@ -28,6 +29,7 @@ export function TranscriptSidebar({
   setCurrentTime,
   onTranscriptUpdate,
   className = "",
+  mode,
 }: TranscriptSidebarProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState("");
@@ -63,7 +65,7 @@ export function TranscriptSidebar({
   };
 
   const handleDownloadSrt = () => {
-    const srtContent = transcriptToSrt(transcript);
+    const srtContent = transcriptToSrt(transcript, mode);
     const blob = new Blob([srtContent], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -74,7 +76,7 @@ export function TranscriptSidebar({
   };
 
   const handleDownloadVtt = () => {
-    const vttContent = transcriptToVtt(transcript);
+    const vttContent = transcriptToVtt(transcript, mode);
     const blob = new Blob([vttContent], { type: "text/vtt" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

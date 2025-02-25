@@ -44,6 +44,7 @@ export default function Home() {
   );
   const [uploadKey, setUploadKey] = useState(0);
   const [showApp, setShowApp] = useState(false);
+  const [mode, setMode] = useState<"word" | "phrase">("word");
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const {
@@ -64,6 +65,7 @@ export default function Home() {
     subtitleStyle,
     setStatus,
     setProgress,
+    mode,
   });
 
   // Function to handle video reset and upload another
@@ -183,6 +185,8 @@ export default function Home() {
                     transcript={result}
                     currentTime={currentTime}
                     subtitleStyle={subtitleStyle}
+                    mode={mode}
+                    onModeChange={setMode}
                   />
 
                   {result && (
@@ -223,6 +227,7 @@ export default function Home() {
                         onTranscriptUpdate={(updatedTranscript) => {
                           setResult(updatedTranscript);
                         }}
+                        mode={mode}
                       />
                     </ScrollArea>
                   </div>

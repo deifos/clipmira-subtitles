@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { VideoCaption } from "./video-caption";
 import { SubtitleStyle } from "./subtitle-styling";
 import { UploadIcon } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface VideoUploadProps {
   onVideoSelect: (file: File) => void;
@@ -19,6 +20,8 @@ interface VideoUploadProps {
   } | null;
   currentTime?: number;
   subtitleStyle: SubtitleStyle;
+  mode: "word" | "phrase";
+  onModeChange: (mode: "word" | "phrase") => void;
 }
 
 export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
@@ -30,6 +33,8 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       transcript,
       currentTime = 0,
       subtitleStyle,
+      mode,
+      onModeChange,
     },
     ref
   ) => {
@@ -118,7 +123,20 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
         onDrop={handleDrop}
       >
         {videoSrc ? (
-          <div className="relative flex items-center justify-center w-full h-full">
+          <div className="relative flex flex-col items-center justify-center w-full h-full">
+            {transcript && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+                <Tabs
+                  defaultValue={mode}
+                  onValueChange={(v) => onModeChange(v as "word" | "phrase")}
+                >
+                  <TabsList className="grid w-[400px] grid-cols-2">
+                    <TabsTrigger value="word">Word by Word</TabsTrigger>
+                    <TabsTrigger value="phrase">Phrases</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            )}
             <video
               ref={ref}
               src={videoSrc}
@@ -131,6 +149,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
                 transcript={transcript}
                 currentTime={currentTime}
                 style={subtitleStyle}
+                mode={mode}
               />
             )}
           </div>

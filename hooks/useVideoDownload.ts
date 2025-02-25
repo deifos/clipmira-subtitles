@@ -1,5 +1,6 @@
 import { SubtitleStyle } from "@/components/ui/subtitle-styling";
 import { TranscriptionStatus } from "@/hooks/useTranscription";
+import { processTranscriptChunks } from "@/lib/utils";
 
 interface TranscriptionResult {
   text: string;
@@ -15,6 +16,7 @@ interface UseVideoDownloadProps {
   subtitleStyle: SubtitleStyle;
   setStatus: (status: TranscriptionStatus) => void;
   setProgress: (progress: number) => void;
+  mode: "word" | "phrase";
 }
 
 export function useVideoDownload({
@@ -23,6 +25,7 @@ export function useVideoDownload({
   subtitleStyle,
   setStatus,
   setProgress,
+  mode,
 }: UseVideoDownloadProps) {
   const handleDownloadVideo = () => {
     if (!videoRef.current || !videoRef.current.src || !result) {
@@ -183,8 +186,11 @@ export function useVideoDownload({
       // Draw video frame
       ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
 
+      // Process chunks according to the current mode
+      const processedChunks = processTranscriptChunks(result, mode);
+
       // Find current subtitle chunk
-      const currentChunks = result.chunks.filter(
+      const currentChunks = processedChunks.filter(
         (chunk) =>
           videoRef.current!.currentTime >= chunk.timestamp[0] &&
           videoRef.current!.currentTime <= chunk.timestamp[1]
@@ -218,7 +224,7 @@ export function useVideoDownload({
         const textHeight = fontSizeScaled * 1.5; // Increase height for better padding
 
         // Add padding around text (similar to px-4 py-2 in the preview)
-        const paddingX = fontSizeScaled * 0.8; // Horizontal padding
+        const paddingX = fontSizeScaled * 0.8;
         const paddingY = fontSizeScaled * 0.5; // Vertical padding
 
         // Draw subtitle background with rounded corners if specified
@@ -339,28 +345,9 @@ export function useVideoDownload({
         }
       })
       .catch((error) => {
-        console.error("Error playing video for rendering:", error);
-
-        // Disconnect the audio source to prevent errors
-        try {
-          audioSource.disconnect();
-        } catch (e) {
-          console.log("Error disconnecting audio source:", e);
-        }
-
-        // Restore the original video state on error
-        if (videoRef.current) {
-          videoRef.current.src = originalSrc;
-          videoRef.current.currentTime = originalCurrentTime;
-          if (!originalPaused) {
-            videoRef.current
-              .play()
-              .catch((e) => console.error("Error playing video:", e));
-          }
-        }
-
-        setStatus("idle");
-        setProgress(0);
+        console.error("Error playing video:", error);
+        setStatus("ready");
+        setProgress(100);
       });
   };
 

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { SubtitleStyle } from "./subtitle-styling";
+import { processTranscriptChunks } from "@/lib/utils";
 
 interface TranscriptChunk {
   text: string;
@@ -13,21 +14,27 @@ interface VideoCaptionProps {
   };
   currentTime: number;
   style: SubtitleStyle;
+  mode: "word" | "phrase";
 }
 
 export function VideoCaption({
   transcript,
   currentTime,
   style,
+  mode,
 }: VideoCaptionProps) {
-  const currentChunk = useMemo(() => {
-    return transcript.chunks.find((chunk) => {
+  const currentChunks = useMemo(() => {
+    // Process chunks according to the current mode
+    const processedChunks = processTranscriptChunks(transcript, mode);
+
+    // Find chunks that match the current time
+    return processedChunks.filter((chunk) => {
       const [start, end] = chunk.timestamp;
       return currentTime >= start && currentTime < end;
     });
-  }, [transcript.chunks, currentTime]);
+  }, [transcript, currentTime, mode]);
 
-  if (!currentChunk || !currentChunk.text.trim()) {
+  if (currentChunks.length === 0) {
     return null;
   }
 
@@ -41,6 +48,12 @@ export function VideoCaption({
     // For browsers that don't support it, we'll use a simplified text-shadow as fallback
     return `-1px -1px 0 ${color}, 1px -1px 0 ${color}, -1px 1px 0 ${color}, 1px 1px 0 ${color}`;
   };
+
+  const text = currentChunks.map((chunk) => chunk.text.trim()).join(" ");
+
+  if (!text) {
+    return null;
+  }
 
   return (
     <div className="absolute bottom-16 left-0 right-0 flex justify-center pointer-events-none">
@@ -60,7 +73,7 @@ export function VideoCaption({
           letterSpacing: style.borderWidth > 2 ? "0.5px" : "normal", // Add letter spacing for better readability with thick borders
         }}
       >
-        {currentChunk.text}
+        {text}
       </div>
     </div>
   );
