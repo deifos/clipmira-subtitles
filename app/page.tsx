@@ -256,7 +256,7 @@ export default function Home() {
               Learn More
             </Button>
           </div>
-          <Alert className="mt-8 max-w-lg mx-auto bg-muted/50 border border-primary/20">
+          <Alert className="mt-8 max-w-lg mx-auto ">
             <Video className="h-4 w-4 text-primary" />
             <AlertDescription>
               Supported formats: MP4 and WebM. Maximum video length: 5 minutes.
