@@ -32,7 +32,6 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
     },
     ref
   ) => {
-    const [isDragging, setIsDragging] = useState(false);
     const [videoSrc, setVideoSrc] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +49,6 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
     useEffect(() => {
       setVideoSrc(null);
       setError(null);
-      setIsDragging(false);
     }, []);
 
     const handleFile = useCallback(
@@ -89,7 +87,6 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
     const handleDrop = useCallback(
       (e: React.DragEvent) => {
         e.preventDefault();
-        setIsDragging(false);
 
         const file = e.dataTransfer.files[0];
         if (file) handleFile(file);
@@ -112,14 +109,11 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       <div
         className={cn(
           "relative border-2 border-dashed rounded-lg transition-colors min-h-[300px] overflow-hidden",
-          isDragging ? "border-primary" : "border-muted-foreground/25",
           className
         )}
         onDragOver={(e) => {
           e.preventDefault();
-          setIsDragging(true);
         }}
-        onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
       >
         {videoSrc ? (
@@ -147,7 +141,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
               onChange={handleChange}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
             />
-            <p className="text-sm text-muted-foreground mb-2">
+            <p className="mb-2">
               Drag and drop a video file here, or click to select
             </p>
             <p className="text-xs text-muted-foreground">
