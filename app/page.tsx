@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/subtitle-styling";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type TranscriptionStatus =
   | "idle"
@@ -352,27 +353,70 @@ export default function Home() {
 
       // Clean up
       URL.revokeObjectURL(url);
-      setStatus("ready");
-      setProgress(100);
 
       // Close audio context
       audioCtx.close();
 
-      // Restore the original video state
+      // Properly restore the original video
       if (videoRef.current) {
-        // Create a new video element to reload the source
+        // Disconnect the audio source to prevent errors
+        try {
+          audioSource.disconnect();
+        } catch (e) {
+          console.log("Error disconnecting audio source:", e);
+        }
+
+        // Create a new video element to clone the original source
         const tempVideo = document.createElement("video");
+        tempVideo.crossOrigin = "anonymous";
         tempVideo.src = originalSrc;
-        tempVideo.onloadedmetadata = () => {
+
+        // Wait for the temp video to be ready
+        tempVideo.onloadeddata = () => {
           if (videoRef.current) {
-            videoRef.current.src = originalSrc;
-            videoRef.current.currentTime = originalCurrentTime;
-            if (!originalPaused) {
-              videoRef.current.play();
+            // Completely recreate the video element to avoid any issues
+            const videoParent = videoRef.current.parentNode;
+            if (videoParent) {
+              // Create a new video element
+              const newVideo = document.createElement("video");
+              newVideo.src = originalSrc;
+              newVideo.controls = videoRef.current.controls;
+              newVideo.className = videoRef.current.className;
+              newVideo.crossOrigin = "anonymous";
+              newVideo.style.cssText = videoRef.current.style.cssText;
+
+              // Replace the old video with the new one
+              videoParent.replaceChild(newVideo, videoRef.current);
+
+              // Update the ref
+              videoRef.current = newVideo;
+
+              // Set the current time and play state
+              newVideo.currentTime = originalCurrentTime;
+              if (!originalPaused) {
+                newVideo
+                  .play()
+                  .catch((e) => console.error("Error playing video:", e));
+              }
+
+              // Reattach the timeupdate event
+              newVideo.ontimeupdate = () => {
+                setCurrentTime(newVideo.currentTime);
+              };
             }
           }
         };
+
+        // Handle any errors
+        tempVideo.onerror = () => {
+          console.error("Error loading original video source");
+          setStatus("ready");
+          setProgress(100);
+        };
       }
+
+      setStatus("ready");
+      setProgress(100);
     };
 
     // Start recording
@@ -549,17 +593,27 @@ export default function Home() {
       })
       .catch((error) => {
         console.error("Error playing video for rendering:", error);
-        setStatus("idle");
-        setProgress(0);
+
+        // Disconnect the audio source to prevent errors
+        try {
+          audioSource.disconnect();
+        } catch (e) {
+          console.log("Error disconnecting audio source:", e);
+        }
 
         // Restore the original video state on error
         if (videoRef.current) {
           videoRef.current.src = originalSrc;
           videoRef.current.currentTime = originalCurrentTime;
           if (!originalPaused) {
-            videoRef.current.play();
+            videoRef.current
+              .play()
+              .catch((e) => console.error("Error playing video:", e));
           }
         }
+
+        setStatus("idle");
+        setProgress(0);
       });
   };
 
@@ -580,13 +634,13 @@ export default function Home() {
           </div>
 
           {result && (
-            <button
+            <Button
               onClick={handleResetVideo}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
               <Upload className="w-4 h-4" />
               Upload Another Video
-            </button>
+            </Button>
           )}
         </div>
 
@@ -596,14 +650,20 @@ export default function Home() {
           </Alert>
         )}
 
+        {/* <div className="not-prose flex w-full items-center justify-center z-[15] relative border-2 mb-5 border-border dark:border-darkBorder bg-white dark:bg-secondaryBlack bg-[radial-gradient(#80808080_1px,transparent_1px)] px-10 py-20 shadow-light dark:shadow-dark [background-size:16px_16px] m750:px-5 m750:py-10"></div> */}
+
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Subtitle Styling Column - Only show when we have a result */}
           {result && (
             <div className="w-full lg:w-72 h-[500px]">
-              <SubtitleStyling
-                style={subtitleStyle}
-                onChange={setSubtitleStyle}
-              />
+              <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-4 shadow-shadow">
+                <div className="p-4">
+                  <SubtitleStyling
+                    style={subtitleStyle}
+                    onChange={setSubtitleStyle}
+                  />
+                </div>
+              </ScrollArea>
             </div>
           )}
 
@@ -636,20 +696,22 @@ export default function Home() {
 
           {/* Transcript Column */}
           {result && (
-            <div className="w-full lg:w-96 h-[500px] border rounded-lg overflow-hidden">
-              <TranscriptSidebar
-                transcript={result}
-                currentTime={currentTime}
-                setCurrentTime={(time) => {
-                  if (videoRef.current) {
-                    videoRef.current.currentTime = time;
-                    setCurrentTime(time);
-                  }
-                }}
-                onTranscriptUpdate={(updatedTranscript) => {
-                  setResult(updatedTranscript);
-                }}
-              />
+            <div className="w-full lg:w-96 h-[500px]">
+              <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-4 shadow-shadow">
+                <TranscriptSidebar
+                  transcript={result}
+                  currentTime={currentTime}
+                  setCurrentTime={(time) => {
+                    if (videoRef.current) {
+                      videoRef.current.currentTime = time;
+                      setCurrentTime(time);
+                    }
+                  }}
+                  onTranscriptUpdate={(updatedTranscript) => {
+                    setResult(updatedTranscript);
+                  }}
+                />
+              </ScrollArea>
             </div>
           )}
         </div>

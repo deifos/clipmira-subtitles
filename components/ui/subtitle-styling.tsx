@@ -1,3 +1,12 @@
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 export interface SubtitleStyle {
   fontFamily: string;
   fontSize: number;
@@ -45,16 +54,16 @@ export function SubtitleStyling({
   onChange,
   className = "",
 }: SubtitleStylingProps) {
-  const handleFontFamilyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChange({ ...style, fontFamily: e.target.value });
+  const handleFontFamilyChange = (value: string) => {
+    onChange({ ...style, fontFamily: value });
   };
 
-  const handleFontSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChange({ ...style, fontSize: Number(e.target.value) });
+  const handleFontSizeChange = (value: string) => {
+    onChange({ ...style, fontSize: Number(value) });
   };
 
-  const handleFontWeightChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChange({ ...style, fontWeight: e.target.value });
+  const handleFontWeightChange = (value: string) => {
+    onChange({ ...style, fontWeight: value });
   };
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,8 +76,8 @@ export function SubtitleStyling({
     onChange({ ...style, backgroundColor: e.target.value });
   };
 
-  const handleBorderWidthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    onChange({ ...style, borderWidth: Number(e.target.value) });
+  const handleBorderWidthChange = (value: string) => {
+    onChange({ ...style, borderWidth: Number(value) });
   };
 
   const handleBorderColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,57 +85,76 @@ export function SubtitleStyling({
   };
 
   return (
-    <div
-      className={`flex flex-col h-full border rounded-lg overflow-hidden ${className}`}
-    >
-      <div className="p-4 border-b">
+    <div className={`flex flex-col h-full overflow-hidden ${className}`}>
+      <div className="px-4 ">
         <h3 className="font-medium text-lg">Subtitle Styling</h3>
       </div>
 
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
         <div className="space-y-2">
           <label className="text-sm font-medium block">Font Family</label>
-          <select
+          <Select
             value={style.fontFamily}
-            onChange={handleFontFamilyChange}
-            className="w-full p-2 border rounded-md bg-background"
+            onValueChange={handleFontFamilyChange}
           >
-            {fontOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full p-2 border rounded-md bg-background">
+              <SelectValue placeholder="Select a font" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {fontOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium block">Font Size</label>
-          <select
-            value={style.fontSize}
-            onChange={handleFontSizeChange}
-            className="w-full p-2 border rounded-md bg-background"
+          <Select
+            value={style.fontSize.toString()}
+            onValueChange={handleFontSizeChange}
           >
-            {fontSizeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full p-2 border rounded-md bg-background">
+              <SelectValue placeholder="Select a size" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {fontSizeOptions.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value.toString()}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
           <label className="text-sm font-medium block">Font Weight</label>
-          <select
+          <Select
             value={style.fontWeight}
-            onChange={handleFontWeightChange}
-            className="w-full p-2 border rounded-md bg-background"
+            onValueChange={handleFontWeightChange}
           >
-            {fontWeightOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full p-2 border rounded-md bg-background">
+              <SelectValue placeholder="Select a weight" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {fontWeightOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
@@ -157,17 +185,26 @@ export function SubtitleStyling({
 
         <div className="space-y-2">
           <label className="text-sm font-medium block">Border Width</label>
-          <select
-            value={style.borderWidth}
-            onChange={handleBorderWidthChange}
-            className="w-full p-2 border rounded-md bg-background"
+          <Select
+            value={style.borderWidth.toString()}
+            onValueChange={handleBorderWidthChange}
           >
-            {borderWidthOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full p-2 border rounded-md bg-background">
+              <SelectValue placeholder="Select a border width" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {borderWidthOptions.map((option) => (
+                  <SelectItem
+                    key={option.value}
+                    value={option.value.toString()}
+                  >
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </div>
 
         {style.borderWidth > 0 && (

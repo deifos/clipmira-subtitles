@@ -14,13 +14,24 @@ const PER_DEVICE_CONFIG = {
   webgpu: {
     device: "webgpu" as const,
     dtype: {
-      encoder_model: "fp32",
-      decoder_model_merged: "q4",
-    },
+      encoder_model: "fp32" as const,
+      decoder_model_merged: "q4" as const,
+    } as Record<
+      string,
+      | "fp32"
+      | "q4"
+      | "q8"
+      | "auto"
+      | "fp16"
+      | "int8"
+      | "uint8"
+      | "bnb4"
+      | "q4f16"
+    >,
   },
   wasm: {
     device: "wasm" as const,
-    dtype: "q8",
+    dtype: "q8" as const,
   },
 };
 
@@ -89,15 +100,26 @@ async function handleLoad({ device = "wasm" }: { device?: DeviceType }) {
       "onnx-community/whisper-base_timestamped",
       {
         ...deviceConfig,
-        progress_callback: (progressInfo: any) => {
+        progress_callback: (progressInfo) => {
           console.log("Worker: Model loading progress", progressInfo);
-          // Extract progress value or use a default
-          const progressValue =
-            typeof progressInfo === "number"
-              ? progressInfo
-              : progressInfo && typeof progressInfo.progress === "number"
-              ? progressInfo.progress
-              : 0;
+          // Extract progress value based on the type
+          let progressValue = 0;
+
+          if (typeof progressInfo === "number") {
+            progressValue = progressInfo;
+          } else if (progressInfo) {
+            // Handle different progress info formats
+            if ("progress" in progressInfo) {
+              progressValue = (progressInfo as { progress: number }).progress;
+            } else if (
+              "status" in progressInfo &&
+              (progressInfo.status === "download" ||
+                progressInfo.status === "ready")
+            ) {
+              // Use different progress values based on status
+              progressValue = progressInfo.status === "download" ? 0.3 : 0.8;
+            }
+          }
 
           self.postMessage({
             status: "progress",
@@ -171,21 +193,8 @@ async function handleRun({
       language,
       return_timestamps: "word",
       chunk_length_s: 30,
-      // Use the proper configuration for progress updates
-      generate_callback: (progressInfo: any) => {
-        // Send progress updates to the main thread
-        const progressValue =
-          typeof progressInfo === "number"
-            ? progressInfo
-            : progressInfo && typeof progressInfo.progress === "number"
-            ? progressInfo.progress
-            : 0;
-
-        self.postMessage({
-          status: "progress",
-          data: { progress: progressValue },
-        });
-      },
+      // Transcription doesn't support progress callbacks in the same way
+      // We'll rely on the completion event instead
     });
 
     const end = performance.now();
