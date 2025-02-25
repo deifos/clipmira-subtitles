@@ -27,7 +27,7 @@ export function VideoCaption({
     });
   }, [transcript.chunks, currentTime]);
 
-  if (!currentChunk) {
+  if (!currentChunk || !currentChunk.text.trim()) {
     return null;
   }
 
