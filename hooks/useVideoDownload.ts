@@ -297,13 +297,20 @@ export function useVideoDownload({
       }
 
       // Create a MediaRecorder with the combined stream
+      const mimeType = MediaRecorder.isTypeSupported(
+        "video/mp4;codecs=h264,aac"
+      )
+        ? "video/mp4;codecs=h264,aac"
+        : "video/webm;codecs=vp8,opus";
+
       mediaRecorder = new MediaRecorder(canvasStream, {
-        mimeType: "video/webm",
-        videoBitsPerSecond: 3500000, // 3.5 Mbps for good quality
+        mimeType,
+        videoBitsPerSecond: 8_000_000, // 8 Mbps for video
+        audioBitsPerSecond: 192_000, // 192 kbps for audio
       });
 
       let startTime: number | null = null;
-      const recordingInterval = 100; // Record in smaller chunks for better seeking
+      const recordingInterval = 1000; // Record in 1-second chunks for better seeking
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
@@ -313,16 +320,15 @@ export function useVideoDownload({
 
       // Set up cleanup when recording stops
       mediaRecorder.onstop = () => {
-        // Create a blob from the recorded chunks with proper MIME type
-        const blob = new Blob(chunks, {
-          type: "video/webm",
-        });
+        // Create a blob from the recorded chunks with proper MIME type and codecs
+        const blob = new Blob(chunks, { type: mimeType });
 
         // Create download link with timestamp in filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `video_with_subtitles_${timestamp}.webm`;
+        const extension = mimeType.includes("mp4") ? "mp4" : "webm";
+        a.download = `video_with_subtitles_${timestamp}.${extension}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
