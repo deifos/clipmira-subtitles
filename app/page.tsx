@@ -163,8 +163,8 @@ export default function Home() {
               <div className="flex flex-col lg:flex-row gap-6">
                 {/* Subtitle Styling Column - Only show when we have a result */}
                 {result && (
-                  <div className="w-full lg:w-96 h-[500px]">
-                    <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-2 shadow-shadow">
+                  <div className="w-full lg:w-96 h-[620px]">
+                    <ScrollArea className="rounded-base h-[620px] w-full text-mtext border-2 border-border bg-main p-2 shadow-shadow">
                       <div className="p-2">
                         <SubtitleStyling
                           style={subtitleStyle}
@@ -208,8 +208,8 @@ export default function Home() {
 
                 {/* Transcript Column */}
                 {result && (
-                  <div className="w-full lg:w-96 h-[500px]">
-                    <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-4 shadow-shadow">
+                  <div className="w-full lg:w-96 h-[620px]">
+                    <ScrollArea className="rounded-base h-[620px] w-full text-mtext border-2 border-border bg-main p-4 shadow-shadow">
                       <div className="mb-4 pb-2 border-b border-border">
                         <h4 className="text-lg font-semibold">
                           Edit Transcript

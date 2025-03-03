@@ -36,6 +36,7 @@ const fontSizeOptions = [
   { value: 16, label: "Small" },
   { value: 20, label: "Medium" },
   { value: 24, label: "Large" },
+  { value: 42, label: "X Large" },
 ];
 
 const fontWeightOptions = [
