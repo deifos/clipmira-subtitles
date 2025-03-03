@@ -35,6 +35,7 @@ const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   backgroundColor: "transparent", // No background
   borderWidth: 2,
   borderColor: "#000000", // Black border
+  animated: true, // Default to animated
 };
 
 export default function Home() {

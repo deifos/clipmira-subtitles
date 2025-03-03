@@ -6,6 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 export interface SubtitleStyle {
   fontFamily: string;
@@ -85,6 +87,10 @@ export function SubtitleStyling({
     onChange({ ...style, borderColor: e.target.value });
   };
 
+  const handleAnimationToggle = (checked: boolean) => {
+    onChange({ ...style, animated: checked });
+  };
+
   // Add preset styles
   const applyMetallicStyle = () => {
     onChange({
@@ -96,6 +102,7 @@ export function SubtitleStyling({
       backgroundColor: "transparent",
       borderWidth: 2,
       borderColor: "#000000",
+      animated: true,
     });
   };
 
@@ -124,6 +131,26 @@ export function SubtitleStyling({
               IMPORTANT
             </button>
           </div>
+        </div>
+
+        {/* Add animation toggle switch after the presets */}
+        <div className="space-y-2 pt-1 pb-1 border-t border-b">
+          <div className="flex items-center justify-between">
+            <Label
+              htmlFor="animated-toggle"
+              className="text-sm font-medium cursor-pointer"
+            >
+              Animated Entrance
+            </Label>
+            <Switch
+              id="animated-toggle"
+              checked={style.animated}
+              onCheckedChange={handleAnimationToggle}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Subtitles will grow with a bounce effect when they appear
+          </p>
         </div>
 
         <div className="space-y-2">
@@ -278,7 +305,7 @@ export function SubtitleStyling({
             WebkitTextFillColor: "transparent",
             WebkitTextStroke: `2px ${style.borderColor}`,
             filter: "drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.9))",
-            animation: "subtitleBounce 2s infinite",
+            animation: style.animated ? "subtitleBounce 2s infinite" : "none",
           }}
         >
           IMPORTANT
@@ -289,7 +316,8 @@ export function SubtitleStyling({
           @keyframes subtitleBounce {
             0%, 100% { transform: scale(1) translateY(0); }
             3% { transform: scale(0); opacity: 0; transform: translateY(25px); }
-            5% { transform: scale(1.08) translateY(-5px); opacity: 1; }
+            5% { transform: scale(1.08) translateY(-5px) translateX(3px); opacity: 1; }
+            7% { transform: scale(1.05) translateY(-3px) translateX(-2px); opacity: 1; }
             10% { transform: scale(1) translateY(0); }
           }
         `,

@@ -50,17 +50,24 @@ export function VideoCaption({
       // Set new text
       setCurrentText(text);
 
-      // Trigger initial animation in the next frame
-      requestAnimationFrame(() => {
-        setIsAnimating(true);
+      // Only trigger animation if enabled
+      if (style.animated) {
+        // Trigger initial animation in the next frame
+        requestAnimationFrame(() => {
+          setIsAnimating(true);
 
-        // After initial animation, start settling animation
-        setTimeout(() => {
-          setIsSettling(true);
-        }, 200); // Faster initial animation
-      });
+          // After initial animation, start settling animation
+          setTimeout(() => {
+            setIsSettling(true);
+          }, 200); // Faster initial animation
+        });
+      } else {
+        // If animation is disabled, just show the text immediately
+        setIsAnimating(true);
+        setIsSettling(true);
+      }
     }
-  }, [currentChunks, currentText]);
+  }, [currentChunks, currentText, style.animated]);
 
   if (currentChunks.length === 0) return null;
 
@@ -73,9 +80,16 @@ export function VideoCaption({
   const line1 = shouldSplitText ? words.slice(0, midpoint).join(" ") : text;
   const line2 = shouldSplitText ? words.slice(midpoint).join(" ") : "";
 
-  // Animation states - more subtle
-  const scale = !isAnimating ? 0 : isSettling ? 1 : 1.08; // Reduced from 1.25
-  const translateY = !isAnimating ? 25 : isSettling ? 0 : -5; // Reduced from -15
+  // Animation states - more subtle with shake
+  const scale = !isAnimating ? 0 : isSettling ? 1 : 1.08;
+  const translateY = !isAnimating ? 25 : isSettling ? 0 : -5;
+  const translateX = !isAnimating
+    ? 0
+    : isSettling
+    ? 0
+    : Math.random() > 0.5
+    ? 3
+    : -3; // Add a slight random shake
 
   return (
     <div
@@ -95,11 +109,17 @@ export function VideoCaption({
         className="inline-block px-3 py-2"
         style={{
           backgroundColor: "transparent",
-          transform: `scale(${scale}) translateY(${translateY}px)`,
+          // Only apply transform animation if enabled
+          transform: style.animated
+            ? `scale(${scale}) translateY(${translateY}px) translateX(${translateX}px)`
+            : "scale(1) translateY(0)",
           opacity: isAnimating ? 1 : 0,
-          transition: isSettling
-            ? "transform 0.15s cubic-bezier(0.34, 1.3, 0.64, 1)" // Less extreme bounce on return
-            : "transform 0.18s cubic-bezier(0.16, 1, 0.3, 1.4), opacity 0.08s ease-in", // More controlled bounce
+          // Only apply transition if animation is enabled
+          transition: style.animated
+            ? isSettling
+              ? "transform 0.15s cubic-bezier(0.34, 1.3, 0.64, 1)"
+              : "transform 0.18s cubic-bezier(0.16, 1, 0.3, 1.4), opacity 0.08s ease-in"
+            : "opacity 0.15s ease-in", // Simple fade in when animations disabled
         }}
       >
         <div className="flex flex-col gap-1">
