@@ -106,9 +106,9 @@ export function VideoCaption({
       }}
     >
       <div
-        className="inline-block px-3 py-2"
+        className="inline-block px-3 py-2 rounded-md"
         style={{
-          backgroundColor: "transparent",
+          backgroundColor: style.backgroundColor,
           // Only apply transform animation if enabled
           transform: style.animated
             ? `scale(${scale}) translateY(${translateY}px) translateX(${translateX}px)`
@@ -128,15 +128,23 @@ export function VideoCaption({
               color: style.color,
               textTransform: "uppercase",
               letterSpacing: "normal",
-              background:
-                style.color === "#CCCCCC" || style.color === "#C0C0C0"
-                  ? "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)"
-                  : style.color,
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
+              ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
+                ? {
+                    background:
+                      "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }
+                : {}),
               textShadow: "none",
-              WebkitTextStroke: `2px ${style.borderColor}`,
-              filter: "drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.9))",
+              WebkitTextStroke:
+                style.borderWidth > 0
+                  ? `${style.borderWidth}px ${style.borderColor}`
+                  : "none",
+              filter: `drop-shadow(2px 2px ${Math.max(
+                2,
+                style.dropShadowIntensity * 5
+              )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
             }}
           >
             {line1}
@@ -147,15 +155,23 @@ export function VideoCaption({
                 color: style.color,
                 textTransform: "uppercase",
                 letterSpacing: "normal",
-                background:
-                  style.color === "#CCCCCC" || style.color === "#C0C0C0"
-                    ? "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)"
-                    : style.color,
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
+                ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
+                  ? {
+                      background:
+                        "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }
+                  : {}),
                 textShadow: "none",
-                WebkitTextStroke: `2px ${style.borderColor}`,
-                filter: "drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.9))",
+                WebkitTextStroke:
+                  style.borderWidth > 0
+                    ? `${style.borderWidth}px ${style.borderColor}`
+                    : "none",
+                filter: `drop-shadow(2px 2px ${Math.max(
+                  2,
+                  style.dropShadowIntensity * 5
+                )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
               }}
             >
               {line2}

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 
 export interface SubtitleStyle {
   fontFamily: string;
@@ -18,6 +19,7 @@ export interface SubtitleStyle {
   borderWidth: number;
   borderColor: string;
   animated: boolean;
+  dropShadowIntensity: number;
 }
 
 interface SubtitleStylingProps {
@@ -92,6 +94,10 @@ export function SubtitleStyling({
     onChange({ ...style, animated: checked });
   };
 
+  const handleDropShadowIntensityChange = (value: string) => {
+    onChange({ ...style, dropShadowIntensity: Number(value) });
+  };
+
   // Add preset styles
   const applyMetallicStyle = () => {
     onChange({
@@ -104,6 +110,7 @@ export function SubtitleStyling({
       borderWidth: 2,
       borderColor: "#000000",
       animated: true,
+      dropShadowIntensity: 0.9,
     });
   };
 
@@ -119,6 +126,39 @@ export function SubtitleStyling({
       borderWidth: 3,
       borderColor: "#000000", // Black border
       animated: true,
+      dropShadowIntensity: 0.8,
+    });
+  };
+
+  // Add yellow text on black background preset
+  const applyYellowOnBlackStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "Arial, sans-serif",
+      fontSize: 42,
+      fontWeight: "900",
+      color: "#FFFF00", // Bright yellow
+      backgroundColor: "#000000", // Black background
+      borderWidth: 0,
+      borderColor: "#000000",
+      animated: true,
+      dropShadowIntensity: 0.5,
+    });
+  };
+
+  // Add black text on yellow background preset with normal font size
+  const applyBlackOnYellowStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "Arial, sans-serif",
+      fontSize: 20, // Normal font size
+      fontWeight: "bold",
+      color: "#000000", // Black text
+      backgroundColor: "#FFFF00", // Yellow background
+      borderWidth: 0,
+      borderColor: "#000000",
+      animated: true,
+      dropShadowIntensity: 0.3,
     });
   };
 
@@ -141,6 +181,22 @@ export function SubtitleStyling({
     style.borderWidth === 3 &&
     style.borderColor === "#000000";
 
+  const isYellowOnBlackActive =
+    style.fontFamily === "Arial, sans-serif" &&
+    style.fontSize === 42 &&
+    style.fontWeight === "900" &&
+    style.color === "#FFFF00" &&
+    style.backgroundColor === "#000000" &&
+    style.borderWidth === 0;
+
+  const isBlackOnYellowActive =
+    style.fontFamily === "Arial, sans-serif" &&
+    style.fontSize === 20 &&
+    style.fontWeight === "bold" &&
+    style.color === "#000000" &&
+    style.backgroundColor === "#FFFF00" &&
+    style.borderWidth === 0;
+
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
       <div className="px-4 mb-2">
@@ -151,7 +207,7 @@ export function SubtitleStyling({
         {/* Presets */}
         <div className="space-y-2 mb-2">
           <label className="text-sm font-medium block">Presets</label>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={applyMetallicStyle}
               className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
@@ -179,6 +235,33 @@ export function SubtitleStyling({
               }}
             >
               GREEN
+            </button>
+            <button
+              onClick={applyYellowOnBlackStyle}
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
+                isYellowOnBlackActive ? "ring-2 ring-primary" : ""
+              }`}
+              style={{
+                color: "#FFFF00",
+                backgroundColor: "#000000",
+                padding: "6px",
+              }}
+            >
+              YELLOW
+            </button>
+            <button
+              onClick={applyBlackOnYellowStyle}
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
+                isBlackOnYellowActive ? "ring-2 ring-primary" : ""
+              }`}
+              style={{
+                color: "#000000",
+                backgroundColor: "#FFFF00",
+                padding: "6px",
+                fontSize: "14px",
+              }}
+            >
+              SUBTITLE
             </button>
           </div>
         </div>
@@ -333,6 +416,26 @@ export function SubtitleStyling({
             </div>
           </div>
         )}
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium block">
+            Drop Shadow Intensity
+          </label>
+          <Slider
+            value={[style.dropShadowIntensity * 100]}
+            onValueChange={(values) =>
+              handleDropShadowIntensityChange((values[0] / 100).toString())
+            }
+            min={0}
+            max={100}
+            step={1}
+            className="w-full"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <span>None</span>
+            <span>Strong</span>
+          </div>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -347,14 +450,22 @@ export function SubtitleStyling({
             textTransform: "uppercase",
             color: style.color,
             backgroundColor: style.backgroundColor,
-            background:
-              style.color === "#CCCCCC" || style.color === "#C0C0C0"
-                ? "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)"
+            ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
+              ? {
+                  background:
+                    "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }
+              : {}),
+            WebkitTextStroke:
+              style.borderWidth > 0
+                ? `${style.borderWidth}px ${style.borderColor}`
                 : "none",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            WebkitTextStroke: `2px ${style.borderColor}`,
-            filter: "drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.9))",
+            filter: `drop-shadow(2px 2px ${Math.max(
+              2,
+              style.dropShadowIntensity * 5
+            )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
             animation: style.animated ? "subtitleBounce 2s infinite" : "none",
           }}
         >
