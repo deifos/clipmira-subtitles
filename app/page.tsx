@@ -29,12 +29,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // Default subtitle style
 const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   fontFamily: "Arial, sans-serif",
-  fontSize: 20,
-  fontWeight: "normal",
-  color: "#ffffff",
-  backgroundColor: "rgba(0, 0, 0, 0.75)",
-  borderWidth: 0,
-  borderColor: "#ffffff",
+  fontSize: 42,
+  fontWeight: "900",
+  color: "#CCCCCC", // Silver metallic color
+  backgroundColor: "transparent", // No background
+  borderWidth: 2,
+  borderColor: "#000000", // Black border
 };
 
 export default function Home() {
@@ -111,8 +111,8 @@ export default function Home() {
       <main className="flex min-h-screen flex-col items-center justify-center relative ">
         {/* App Section */}
         <section className="w-full py-8">
-          <div className="container mx-auto px-4 md:px-6">
-            <div className="w-full max-w-7xl mx-auto space-y-6 p-6 md:p-8 rounded-xl border border-border/50">
+          <div className=" mx-auto px-4 md:px-6">
+            <div className="w-full mx-auto space-y-6 p-6 md:p-8 rounded-xl border border-border/50">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <Button
@@ -124,12 +124,10 @@ export default function Home() {
                     <ArrowLeft className="h-5 w-5" />
                   </Button>
                   <div className="space-y-2">
-                    <h3 className="text-2xl font-bold">
-                      Clipmira Subtitle Generator
-                    </h3>
+                    <h3 className="text-2xl font-bold">Subtitle Generator</h3>
                     <p className="text-muted-foreground">
                       Upload a video (MP4 or WebM) to generate subtitles using
-                      AI
+                      AI 100% local
                     </p>
                   </div>
                 </div>
@@ -164,9 +162,9 @@ export default function Home() {
               <div className="flex flex-col lg:flex-row gap-6">
                 {/* Subtitle Styling Column - Only show when we have a result */}
                 {result && (
-                  <div className="w-full lg:w-72 h-[500px]">
-                    <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-4 shadow-shadow">
-                      <div className="p-4">
+                  <div className="w-full lg:w-96 h-[500px]">
+                    <ScrollArea className="rounded-base h-[500px] w-full text-mtext border-2 border-border bg-main p-2 shadow-shadow">
+                      <div className="p-2">
                         <SubtitleStyling
                           style={subtitleStyle}
                           onChange={setSubtitleStyle}

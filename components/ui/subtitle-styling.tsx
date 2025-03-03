@@ -15,6 +15,7 @@ export interface SubtitleStyle {
   backgroundColor: string;
   borderWidth: number;
   borderColor: string;
+  animated: boolean;
 }
 
 interface SubtitleStylingProps {
@@ -84,13 +85,47 @@ export function SubtitleStyling({
     onChange({ ...style, borderColor: e.target.value });
   };
 
+  // Add preset styles
+  const applyMetallicStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "Arial, sans-serif",
+      fontSize: 42,
+      fontWeight: "900",
+      color: "#CCCCCC",
+      backgroundColor: "transparent",
+      borderWidth: 2,
+      borderColor: "#000000",
+    });
+  };
+
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
-      <div className="px-4 ">
+      <div className="px-4 mb-2">
         <h3 className="font-medium text-lg">Subtitle Styling</h3>
       </div>
 
-      <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+      <div className="p-2 space-y-3 flex-1 overflow-y-auto">
+        {/* Presets */}
+        <div className="space-y-2 mb-2">
+          <label className="text-sm font-medium block">Presets</label>
+          <div className="flex gap-2">
+            <button
+              onClick={applyMetallicStyle}
+              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm font-bold text-gray-700 transition-colors w-full"
+              style={{
+                background:
+                  "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                textShadow: "0px 1px 2px rgba(0, 0, 0, 0.5)",
+              }}
+            >
+              IMPORTANT
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label className="text-sm font-medium block">Font Family</label>
           <Select
@@ -223,28 +258,43 @@ export function SubtitleStyling({
         )}
       </div>
 
-      <div className="p-4 border-t">
+      <div className="mt-4">
+        <h4 className="text-sm font-medium mb-2">Preview</h4>
         <div
-          className="p-3 rounded-md text-center"
+          className="p-3 rounded-md text-center preview-animation"
           style={{
             fontFamily: style.fontFamily,
             fontSize: style.fontSize,
             fontWeight: style.fontWeight,
-            letterSpacing: style.borderWidth > 2 ? "0.5px" : "normal",
+            letterSpacing: "normal",
+            textTransform: "uppercase",
             color: style.color,
             backgroundColor: style.backgroundColor,
-            textShadow:
-              style.borderWidth > 0
-                ? `-1px -1px 0 ${style.borderColor}, 1px -1px 0 ${style.borderColor}, -1px 1px 0 ${style.borderColor}, 1px 1px 0 ${style.borderColor}`
+            background:
+              style.color === "#CCCCCC" || style.color === "#C0C0C0"
+                ? "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)"
                 : "none",
-            WebkitTextStroke:
-              style.borderWidth > 0
-                ? `${style.borderWidth}px ${style.borderColor}`
-                : "none",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            WebkitTextStroke: `2px ${style.borderColor}`,
+            filter: "drop-shadow(2px 2px 2px rgba(0, 0, 0, 0.9))",
+            animation: "subtitleBounce 2s infinite",
           }}
         >
-          Preview Text
+          IMPORTANT
         </div>
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+          @keyframes subtitleBounce {
+            0%, 100% { transform: scale(1) translateY(0); }
+            3% { transform: scale(0); opacity: 0; transform: translateY(25px); }
+            5% { transform: scale(1.08) translateY(-5px); opacity: 1; }
+            10% { transform: scale(1) translateY(0); }
+          }
+        `,
+          }}
+        />
       </div>
     </div>
   );
