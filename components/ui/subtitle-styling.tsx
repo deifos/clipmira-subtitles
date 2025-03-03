@@ -107,6 +107,40 @@ export function SubtitleStyling({
     });
   };
 
+  // Add bright green with black border preset
+  const applyGreenStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "Arial, sans-serif",
+      fontSize: 42,
+      fontWeight: "900",
+      color: "#00FF00", // Bright green
+      backgroundColor: "transparent",
+      borderWidth: 3,
+      borderColor: "#000000", // Black border
+      animated: true,
+    });
+  };
+
+  // Check if current style matches a preset
+  const isMetallicActive =
+    style.fontFamily === "Arial, sans-serif" &&
+    style.fontSize === 42 &&
+    style.fontWeight === "900" &&
+    style.color === "#CCCCCC" &&
+    style.backgroundColor === "transparent" &&
+    style.borderWidth === 2 &&
+    style.borderColor === "#000000";
+
+  const isGreenActive =
+    style.fontFamily === "Arial, sans-serif" &&
+    style.fontSize === 42 &&
+    style.fontWeight === "900" &&
+    style.color === "#00FF00" &&
+    style.backgroundColor === "transparent" &&
+    style.borderWidth === 3 &&
+    style.borderColor === "#000000";
+
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
       <div className="px-4 mb-2">
@@ -120,7 +154,9 @@ export function SubtitleStyling({
           <div className="flex gap-2">
             <button
               onClick={applyMetallicStyle}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-sm font-bold text-gray-700 transition-colors w-full"
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
+                isMetallicActive ? "ring-2 ring-primary" : ""
+              }`}
               style={{
                 background:
                   "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
@@ -130,6 +166,19 @@ export function SubtitleStyling({
               }}
             >
               IMPORTANT
+            </button>
+            <button
+              onClick={applyGreenStyle}
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
+                isGreenActive ? "ring-2 ring-primary" : ""
+              }`}
+              style={{
+                color: "#00FF00",
+                backgroundColor: "transparent",
+                textShadow: "0px 0px 3px #000000, 0px 0px 2px #000000",
+              }}
+            >
+              GREEN
             </button>
           </div>
         </div>
