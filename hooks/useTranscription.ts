@@ -47,44 +47,38 @@ export function useTranscription() {
         }
       );
 
-      // Create a callback function for messages from the worker thread
+      // Simplified message handler like sample app
       const onMessageReceived = (e: MessageEvent) => {
-        console.log("Worker message received:", e.data.status);
         switch (e.data.status) {
           case "loading":
             setStatus("loading");
-            setProgress(10);
             break;
 
           case "ready":
-            console.log("Model is ready");
             setStatus("ready");
-            setProgress(30);
-            break;
-
-          case "progress":
-            if (e.data.data && typeof e.data.data.progress === "number") {
-              // Scale progress from 0-1 to 30-90 (leaving room for loading and completion)
-              const scaledProgress = 30 + e.data.data.progress * 60;
-              setProgress(Math.min(90, scaledProgress));
-            } else {
-              // Ensure progress is always visible even without specific progress data
-              setProgress((prev) => Math.min(85, prev + 1));
-            }
             break;
 
           case "complete":
-            console.log("Transcription complete");
             setResult(e.data.result);
             setStatus("ready");
             setProgress(100);
             break;
 
           case "error":
-            console.error("Worker error:", e.data.data);
             setError(e.data.data);
             setStatus("idle");
             setProgress(0);
+            break;
+
+          // Handle model loading progress directly
+          case "progress":
+          case "initiate":
+          case "download":
+          case "done":
+            // Forward progress events for model loading
+            if (e.data.progress !== undefined) {
+              setProgress(Math.round(e.data.progress * 100));
+            }
             break;
         }
       };
@@ -124,75 +118,42 @@ export function useTranscription() {
         throw new Error("Worker not initialized properly");
       }
 
-      // First load the model and wait for it to be ready
-      setStatus("loading");
-      setProgress(5);
-      console.log("Sending load message to worker");
+      // Check if model needs to be loaded
+      if (status === null || status === "idle") {
+        setStatus("loading");
+        worker.current.postMessage({
+          type: "load",
+          data: { device: "wasm" }, // Using wasm for better compatibility
+        });
+        
+        // Wait for model to be ready
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Model loading timed out"));
+          }, 60000);
 
-      // Create a promise that resolves when the model is ready
-      const modelReadyPromise = new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Model loading timed out"));
-        }, 60000);
+          const readyHandler = (e: MessageEvent) => {
+            if (e.data.status === "ready") {
+              clearTimeout(timeout);
+              worker.current?.removeEventListener("message", readyHandler);
+              resolve();
+            } else if (e.data.status === "error") {
+              clearTimeout(timeout);
+              worker.current?.removeEventListener("message", readyHandler);
+              reject(new Error(e.data.data));
+            }
+          };
 
-        const readyHandler = (e: MessageEvent) => {
-          if (e.data.status === "ready") {
-            console.log("Model ready signal received");
-            clearTimeout(timeout);
-            worker.current?.removeEventListener("message", readyHandler);
-            resolve();
-          } else if (e.data.status === "error") {
-            clearTimeout(timeout);
-            worker.current?.removeEventListener("message", readyHandler);
-            reject(new Error(e.data.data));
-          }
-        };
-
-        worker.current?.addEventListener("message", readyHandler);
-      });
-
-      // Send load message to worker
-      worker.current.postMessage({
-        type: "load",
-        data: { device: "wasm" }, // Using wasm instead of webgpu for better compatibility
-      });
-
-      // Wait for model to be ready
-      await modelReadyPromise;
-      console.log("Model is ready, proceeding with audio extraction");
+          worker.current?.addEventListener("message", readyHandler);
+        });
+      }
 
       // Extract audio from video
       setStatus("extracting");
-      setProgress(40);
-      console.log("Starting audio extraction...");
       const audioData = await extractAudioFromVideo(file);
-      console.log("Audio extraction complete. Length:", audioData.length);
-      setProgress(50);
 
-      // Start transcription
+      // Start transcription - simplified like sample app
       setStatus("transcribing");
-      console.log("Starting transcription...");
-
-      // Set up a progress ticker for transcription phase when no progress events
-      const lastProgressUpdate = { value: Date.now() };
-      const progressTicker = setInterval(() => {
-        const now = Date.now();
-        // Increase progress more quickly in the first 20 seconds to show activity
-        const initialBoost = now - lastProgressUpdate.value > 5000 ? 1 : 0.5;
-        lastProgressUpdate.value = now;
-
-        setProgress((prev) => {
-          // Boost initial progress to show activity
-          if (prev < 60) {
-            return Math.min(60, prev + initialBoost);
-          } else if (prev >= 85) {
-            clearInterval(progressTicker);
-            return prev;
-          }
-          return prev + 0.3;
-        });
-      }, 1000);
-
       worker.current.postMessage({
         type: "run",
         data: {
@@ -200,9 +161,6 @@ export function useTranscription() {
           language: "en",
         },
       });
-
-      // Clear the ticker if component unmounts
-      return () => clearInterval(progressTicker);
     } catch (err) {
       console.error("Error in handleVideoSelect:", err);
       if (err instanceof Error) {
@@ -237,37 +195,30 @@ export function useTranscription() {
       );
 
       worker.current.addEventListener("message", (e) => {
-        console.log("Worker message received:", e.data.status);
         switch (e.data.status) {
           case "loading":
             setStatus("loading");
-            setProgress(10);
             break;
           case "ready":
-            console.log("Model is ready");
             setStatus("ready");
-            setProgress(30);
-            break;
-          case "progress":
-            if (e.data.data && typeof e.data.data.progress === "number") {
-              const scaledProgress = 30 + e.data.data.progress * 60;
-              setProgress(Math.min(90, scaledProgress));
-            } else {
-              // Ensure progress is always visible
-              setProgress((prev) => Math.min(85, prev + 1));
-            }
             break;
           case "complete":
-            console.log("Transcription complete");
             setResult(e.data.result);
             setStatus("ready");
             setProgress(100);
             break;
           case "error":
-            console.error("Worker error:", e.data.data);
             setError(e.data.data);
             setStatus("idle");
             setProgress(0);
+            break;
+          case "progress":
+          case "initiate":
+          case "download":
+          case "done":
+            if (e.data.progress !== undefined) {
+              setProgress(Math.round(e.data.progress * 100));
+            }
             break;
         }
       });
