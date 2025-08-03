@@ -1,5 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { 
+  Geist, 
+  Geist_Mono,
+  Montserrat,
+  Poppins,
+  Roboto,
+  Open_Sans,
+  Bebas_Neue,
+  Oswald,
+  Anton,
+  Bangers,
+  Fredoka,
+  Righteous,
+  Nunito
+} from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -9,6 +23,69 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+// Subtitle fonts
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
+  subsets: ["latin"],
+});
+
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+});
+
+const roboto = Roboto({
+  variable: "--font-roboto",
+  subsets: ["latin"],
+  weight: ["400", "500", "700", "900"],
+});
+
+const openSans = Open_Sans({
+  variable: "--font-open-sans",
+  subsets: ["latin"],
+});
+
+const bebasNeue = Bebas_Neue({
+  variable: "--font-bebas-neue",
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
+const oswald = Oswald({
+  variable: "--font-oswald",
+  subsets: ["latin"],
+});
+
+const anton = Anton({
+  variable: "--font-anton",
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
+const bangers = Bangers({
+  variable: "--font-bangers",
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
+const fredoka = Fredoka({
+  variable: "--font-fredoka",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const righteous = Righteous({
+  variable: "--font-righteous",
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
+const nunito = Nunito({
+  variable: "--font-nunito",
   subsets: ["latin"],
 });
 
@@ -25,7 +102,33 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-bg `}
+        className={`${
+          geistSans.variable
+        } ${
+          geistMono.variable
+        } ${
+          montserrat.variable
+        } ${
+          poppins.variable
+        } ${
+          roboto.variable
+        } ${
+          openSans.variable
+        } ${
+          bebasNeue.variable
+        } ${
+          oswald.variable
+        } ${
+          anton.variable
+        } ${
+          bangers.variable
+        } ${
+          fredoka.variable
+        } ${
+          righteous.variable
+        } ${
+          nunito.variable
+        } antialiased bg-bg`}
       >
         {children}
       </body>

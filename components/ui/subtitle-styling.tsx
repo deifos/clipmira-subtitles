@@ -9,6 +9,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
 
 export interface SubtitleStyle {
   fontFamily: string;
@@ -20,6 +21,11 @@ export interface SubtitleStyle {
   borderColor: string;
   animated: boolean;
   dropShadowIntensity: number;
+  // Word highlighting options
+  wordHighlightEnabled: boolean;
+  wordHighlightColor: string;
+  wordHighlightAnimation: "none" | "glow" | "scale" | "bounce" | "pulse";
+  wordHighlightIntensity: number;
 }
 
 interface SubtitleStylingProps {
@@ -30,6 +36,18 @@ interface SubtitleStylingProps {
 
 const fontOptions = [
   { value: "Arial, sans-serif", label: "Arial" },
+  { value: "'Helvetica Neue', Helvetica, Arial, sans-serif", label: "Helvetica" },
+  { value: "var(--font-montserrat), Arial, sans-serif", label: "Montserrat" },
+  { value: "var(--font-poppins), Arial, sans-serif", label: "Poppins" },
+  { value: "var(--font-roboto), Arial, sans-serif", label: "Roboto" },
+  { value: "var(--font-open-sans), Arial, sans-serif", label: "Open Sans" },
+  { value: "var(--font-bebas-neue), Arial, sans-serif", label: "Bebas Neue" },
+  { value: "var(--font-oswald), Arial, sans-serif", label: "Oswald" },
+  { value: "var(--font-anton), Arial, sans-serif", label: "Anton" },
+  { value: "var(--font-bangers), Arial, sans-serif", label: "Bangers" },
+  { value: "var(--font-fredoka), Arial, sans-serif", label: "Fredoka" },
+  { value: "var(--font-righteous), Arial, sans-serif", label: "Righteous" },
+  { value: "var(--font-nunito), Arial, sans-serif", label: "Nunito" },
   { value: "Georgia, serif", label: "Georgia" },
   { value: "Courier New, monospace", label: "Courier" },
 ];
@@ -98,51 +116,79 @@ export function SubtitleStyling({
     onChange({ ...style, dropShadowIntensity: Number(value) });
   };
 
-  // Add preset styles
-  const applyMetallicStyle = () => {
+  const handleWordHighlightToggle = (checked: boolean) => {
+    onChange({ ...style, wordHighlightEnabled: checked });
+  };
+
+  const handleWordHighlightColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...style, wordHighlightColor: e.target.value });
+  };
+
+  const handleWordHighlightAnimationChange = (value: string) => {
+    onChange({ ...style, wordHighlightAnimation: value as any });
+  };
+
+  const handleWordHighlightIntensityChange = (value: string) => {
+    onChange({ ...style, wordHighlightIntensity: Number(value) });
+  };
+
+  // Enhanced preset styles with better sizing for CapCut-like experience
+  const applyImportantStyle = () => {
     onChange({
       ...style,
-      fontFamily: "Arial, sans-serif",
-      fontSize: 42,
-      fontWeight: "900",
-      color: "#CCCCCC",
+      fontFamily: "var(--font-bebas-neue), Arial, sans-serif",
+      fontSize: 28, // Reduced from 42 to be more like CapCut
+      fontWeight: "400",
+      color: "#CCCCCC", // Metallic silver
       backgroundColor: "transparent",
       borderWidth: 2,
       borderColor: "#000000",
       animated: true,
-      dropShadowIntensity: 0.9,
+      dropShadowIntensity: 0.8,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#FFD700", // Gold highlight
+      wordHighlightAnimation: "glow",
+      wordHighlightIntensity: 0.9,
     });
   };
 
-  // Add bright green with black border preset
+  // Enhanced green preset with better sizing
   const applyGreenStyle = () => {
     onChange({
       ...style,
-      fontFamily: "Arial, sans-serif",
-      fontSize: 42,
-      fontWeight: "900",
-      color: "#00FF00", // Bright green
+      fontFamily: "var(--font-oswald), Arial, sans-serif",
+      fontSize: 26, // Reduced from 42
+      fontWeight: "600",
+      color: "#00FF41", // Matrix green
       backgroundColor: "transparent",
-      borderWidth: 3,
-      borderColor: "#000000", // Black border
+      borderWidth: 2,
+      borderColor: "#000000",
       animated: true,
-      dropShadowIntensity: 0.8,
+      dropShadowIntensity: 0.7,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#FFFFFF",
+      wordHighlightAnimation: "scale",
+      wordHighlightIntensity: 0.8,
     });
   };
 
-  // Add yellow text on black background preset
-  const applyYellowOnBlackStyle = () => {
+  // Enhanced yellow preset with better styling
+  const applyYellowStyle = () => {
     onChange({
       ...style,
-      fontFamily: "Arial, sans-serif",
-      fontSize: 42,
-      fontWeight: "900",
-      color: "#FFFF00", // Bright yellow
-      backgroundColor: "#000000", // Black background
+      fontFamily: "var(--font-poppins), Arial, sans-serif",
+      fontSize: 24, // Reduced from 42
+      fontWeight: "700",
+      color: "#FFD700", // Gold instead of bright yellow
+      backgroundColor: "#000000",
       borderWidth: 0,
       borderColor: "#000000",
       animated: true,
-      dropShadowIntensity: 0.5,
+      dropShadowIntensity: 0.6,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#FFFFFF",
+      wordHighlightAnimation: "pulse",
+      wordHighlightIntensity: 0.7,
     });
   };
 
@@ -159,43 +205,113 @@ export function SubtitleStyling({
       borderColor: "#000000",
       animated: true,
       dropShadowIntensity: 0.3,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#FF0000",
+      wordHighlightAnimation: "bounce",
+      wordHighlightIntensity: 0.5,
+    });
+  };
+
+  // Enhanced subtitle preset for professional look
+  const applySubtitleStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "var(--font-open-sans), Arial, sans-serif",
+      fontSize: 22,
+      fontWeight: "600",
+      color: "#FFFFFF",
+      backgroundColor: "rgba(0, 0, 0, 0.8)", // Semi-transparent black
+      borderWidth: 0,
+      borderColor: "#000000",
+      animated: false,
+      dropShadowIntensity: 0.4,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#00BFFF", // Sky blue highlight
+      wordHighlightAnimation: "glow",
+      wordHighlightIntensity: 0.6,
+    });
+  };
+
+  // New preset: TikTok/Instagram style
+  const applyTikTokStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "var(--font-montserrat), Arial, sans-serif",
+      fontSize: 26,
+      fontWeight: "800",
+      color: "#FFFFFF",
+      backgroundColor: "transparent",
+      borderWidth: 3,
+      borderColor: "#FF1493", // Hot pink border
+      animated: true,
+      dropShadowIntensity: 0.9,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#FF1493",
+      wordHighlightAnimation: "bounce",
+      wordHighlightIntensity: 1.0,
+    });
+  };
+
+  // New preset: Gaming/Streamer style
+  const applyGamerStyle = () => {
+    onChange({
+      ...style,
+      fontFamily: "var(--font-bangers), Arial, sans-serif",
+      fontSize: 28,
+      fontWeight: "400",
+      color: "#00FFFF", // Cyan
+      backgroundColor: "transparent",
+      borderWidth: 2,
+      borderColor: "#FF00FF", // Magenta border
+      animated: true,
+      dropShadowIntensity: 0.8,
+      wordHighlightEnabled: true,
+      wordHighlightColor: "#FFFF00",
+      wordHighlightAnimation: "scale",
+      wordHighlightIntensity: 0.9,
     });
   };
 
   // Check if current style matches a preset
-  const isMetallicActive =
-    style.fontFamily === "Arial, sans-serif" &&
-    style.fontSize === 42 &&
-    style.fontWeight === "900" &&
-    style.color === "#CCCCCC" &&
-    style.backgroundColor === "transparent" &&
-    style.borderWidth === 2 &&
-    style.borderColor === "#000000";
+  const isImportantActive =
+    style.fontFamily === "var(--font-bebas-neue), Arial, sans-serif" &&
+    style.fontSize === 28 &&
+    style.fontWeight === "400" &&
+    style.color === "#CCCCCC";
 
   const isGreenActive =
-    style.fontFamily === "Arial, sans-serif" &&
-    style.fontSize === 42 &&
-    style.fontWeight === "900" &&
-    style.color === "#00FF00" &&
-    style.backgroundColor === "transparent" &&
-    style.borderWidth === 3 &&
-    style.borderColor === "#000000";
+    style.fontFamily === "var(--font-oswald), Arial, sans-serif" &&
+    style.fontSize === 26 &&
+    style.fontWeight === "600" &&
+    style.color === "#00FF41";
 
-  const isYellowOnBlackActive =
-    style.fontFamily === "Arial, sans-serif" &&
-    style.fontSize === 42 &&
-    style.fontWeight === "900" &&
-    style.color === "#FFFF00" &&
-    style.backgroundColor === "#000000" &&
-    style.borderWidth === 0;
+  const isYellowActive =
+    style.fontFamily === "var(--font-poppins), Arial, sans-serif" &&
+    style.fontSize === 24 &&
+    style.fontWeight === "700" &&
+    style.color === "#FFD700" &&
+    style.backgroundColor === "#000000";
 
-  const isBlackOnYellowActive =
-    style.fontFamily === "Arial, sans-serif" &&
-    style.fontSize === 20 &&
-    style.fontWeight === "bold" &&
-    style.color === "#000000" &&
-    style.backgroundColor === "#FFFF00" &&
-    style.borderWidth === 0;
+  const isSubtitleActive =
+    style.fontFamily === "var(--font-open-sans), Arial, sans-serif" &&
+    style.fontSize === 22 &&
+    style.fontWeight === "600" &&
+    style.color === "#FFFFFF" &&
+    style.backgroundColor === "rgba(0, 0, 0, 0.8)";
+
+  const isTikTokActive =
+    style.fontFamily === "var(--font-montserrat), Arial, sans-serif" &&
+    style.fontSize === 26 &&
+    style.fontWeight === "800" &&
+    style.color === "#FFFFFF" &&
+    style.borderColor === "#FF1493";
+
+  const isGamerActive =
+    style.fontFamily === "var(--font-bangers), Arial, sans-serif" &&
+    style.fontSize === 28 &&
+    style.fontWeight === "400" &&
+    style.color === "#00FFFF" &&
+    style.borderColor === "#FF00FF";
 
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
@@ -206,88 +322,85 @@ export function SubtitleStyling({
       <div className="p-2 space-y-3 flex-1 overflow-y-auto">
         {/* Presets */}
         <div className="space-y-2 mb-2">
-          <label className="text-sm font-medium block">Presets</label>
+          <label className="text-sm font-medium block">Style Presets</label>
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={applyMetallicStyle}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
-                isMetallicActive ? "ring-2 ring-primary" : ""
-              }`}
+            <Button
+              onClick={applyImportantStyle}
+              variant={isImportantActive ? "default" : "neutral"}
+              className="text-xs font-bold h-8"
               style={{
-                background:
+                background: isImportantActive ? undefined :
                   "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                textShadow: "0px 1px 2px rgba(0, 0, 0, 0.5)",
+                WebkitBackgroundClip: isImportantActive ? undefined : "text",
+                WebkitTextFillColor: isImportantActive ? undefined : "transparent",
+                textShadow: isImportantActive ? undefined : "0px 1px 2px rgba(0, 0, 0, 0.5)",
               }}
             >
               IMPORTANT
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={applyGreenStyle}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
-                isGreenActive ? "ring-2 ring-primary" : ""
-              }`}
+              variant={isGreenActive ? "default" : "neutral"}
+              className="text-xs font-bold h-8"
               style={{
-                color: "#00FF00",
-                backgroundColor: "transparent",
-                textShadow: "0px 0px 3px #000000, 0px 0px 2px #000000",
+                color: isGreenActive ? undefined : "#00FF41",
+                backgroundColor: isGreenActive ? undefined : "transparent",
+                textShadow: isGreenActive ? undefined : "0px 0px 3px #000000, 0px 0px 2px #000000",
               }}
             >
               GREEN
-            </button>
-            <button
-              onClick={applyYellowOnBlackStyle}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
-                isYellowOnBlackActive ? "ring-2 ring-primary" : ""
-              }`}
+            </Button>
+            <Button
+              onClick={applyYellowStyle}
+              variant={isYellowActive ? "default" : "neutral"}
+              className="text-xs font-bold h-8"
               style={{
-                color: "#FFFF00",
-                backgroundColor: "#000000",
-                padding: "6px",
+                color: isYellowActive ? undefined : "#FFD700",
+                backgroundColor: isYellowActive ? undefined : "#000000",
               }}
             >
-              YELLOW
-            </button>
-            <button
-              onClick={applyBlackOnYellowStyle}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-colors w-full ${
-                isBlackOnYellowActive ? "ring-2 ring-primary" : ""
-              }`}
+              GOLD
+            </Button>
+            <Button
+              onClick={applySubtitleStyle}
+              variant={isSubtitleActive ? "default" : "neutral"}
+              className="text-xs font-bold h-8"
               style={{
-                color: "#000000",
-                backgroundColor: "#FFFF00",
-                padding: "6px",
-                fontSize: "14px",
+                color: isSubtitleActive ? undefined : "#FFFFFF",
+                backgroundColor: isSubtitleActive ? undefined : "rgba(0, 0, 0, 0.8)",
               }}
             >
               SUBTITLE
-            </button>
+            </Button>
+            <Button
+              onClick={applyTikTokStyle}
+              variant={isTikTokActive ? "default" : "neutral"}
+              className="text-xs font-bold h-8"
+              style={{
+                color: isTikTokActive ? undefined : "#FFFFFF",
+                backgroundColor: isTikTokActive ? undefined : "transparent",
+                border: isTikTokActive ? undefined : "2px solid #FF1493",
+              }}
+            >
+              TIKTOK
+            </Button>
+            <Button
+              onClick={applyGamerStyle}
+              variant={isGamerActive ? "default" : "neutral"}
+              className="text-xs font-bold h-8"
+              style={{
+                color: isGamerActive ? undefined : "#00FFFF",
+                backgroundColor: isGamerActive ? undefined : "transparent",
+                border: isGamerActive ? undefined : "2px solid #FF00FF",
+              }}
+            >
+              GAMER
+            </Button>
           </div>
         </div>
 
         {/* Add animation toggle switch after the presets */}
         <div className="space-y-2 pt-1 pb-1 border-t border-b">
-          <div className="flex items-center justify-between">
-            <Label
-              htmlFor="animated-toggle"
-              className="text-sm font-medium cursor-pointer"
-            >
-              Animated Entrance
-            </Label>
-            <Switch
-              id="animated-toggle"
-              checked={style.animated}
-              onCheckedChange={handleAnimationToggle}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Subtitles will grow with a bounce effect when they appear
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium block">Font Family</label>
           <Select
             value={style.fontFamily}
             onValueChange={handleFontFamilyChange}
@@ -436,6 +549,88 @@ export function SubtitleStyling({
             <span>Strong</span>
           </div>
         </div>
+
+        {/* Animation Settings */}
+        <div className="space-y-2 pt-4 border-t">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="animation"
+              checked={style.animated}
+              onCheckedChange={handleAnimationToggle}
+            />
+            <Label htmlFor="animation">Enable Subtitle Animations</Label>
+          </div>
+        </div>
+
+        {/* Word Highlighting Settings */}
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="wordHighlight"
+              checked={style.wordHighlightEnabled}
+              onCheckedChange={handleWordHighlightToggle}
+            />
+            <Label htmlFor="wordHighlight">Enable Word Highlighting</Label>
+          </div>
+        </div>
+
+        {style.wordHighlightEnabled && (
+          <>
+            <div className="space-y-2">
+              <label className="text-sm font-medium block">Highlight Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={style.wordHighlightColor}
+                  onChange={handleWordHighlightColorChange}
+                  className="w-10 h-10 rounded cursor-pointer"
+                />
+                <span className="text-sm">{style.wordHighlightColor}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium block">Highlight Animation</label>
+              <Select
+                value={style.wordHighlightAnimation}
+                onValueChange={handleWordHighlightAnimationChange}
+              >
+                <SelectTrigger className="w-full p-2 border rounded-md bg-background">
+                  <SelectValue placeholder="Select animation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="glow">Glow</SelectItem>
+                    <SelectItem value="scale">Scale</SelectItem>
+                    <SelectItem value="bounce">Bounce</SelectItem>
+                    <SelectItem value="pulse">Pulse</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium block">
+                Highlight Intensity
+              </label>
+              <Slider
+                value={[style.wordHighlightIntensity * 100]}
+                onValueChange={(values) =>
+                  handleWordHighlightIntensityChange((values[0] / 100).toString())
+                }
+                min={0}
+                max={100}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                <span>Subtle</span>
+                <span>Strong</span>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-4">
@@ -449,7 +644,10 @@ export function SubtitleStyling({
             letterSpacing: "normal",
             textTransform: "uppercase",
             color: style.color,
-            backgroundColor: style.backgroundColor,
+            // Only set backgroundColor if we're not using a gradient
+            ...(!(style.color === "#CCCCCC" || style.color === "#C0C0C0") && {
+              backgroundColor: style.backgroundColor,
+            }),
             ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
               ? {
                   background:
@@ -469,7 +667,13 @@ export function SubtitleStyling({
             animation: style.animated ? "subtitleBounce 2s infinite" : "none",
           }}
         >
-          IMPORTANT
+          {isImportantActive ? "IMPORTANT" :
+           isGreenActive ? "GREEN" :
+           isYellowActive ? "GOLD" :
+           isSubtitleActive ? "SUBTITLE" :
+           isTikTokActive ? "TIKTOK" :
+           isGamerActive ? "GAMER" :
+           "PREVIEW"}
         </div>
         <style
           dangerouslySetInnerHTML={{

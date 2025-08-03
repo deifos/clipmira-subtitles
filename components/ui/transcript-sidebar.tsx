@@ -1,11 +1,13 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { formatTime, transcriptToSrt, transcriptToVtt } from "@/lib/utils";
+import { formatTime, transcriptToSrt, transcriptToVtt, processTranscriptChunks } from "@/lib/utils";
 import { Button } from "./button";
-import { Edit } from "lucide-react";
+import { Edit, EyeOff, Eye } from "lucide-react";
+import { Alert, AlertDescription } from "./alert";
 
 interface TranscriptChunk {
   text: string;
   timestamp: [number, number];
+  disabled?: boolean;
 }
 
 interface TranscriptSidebarProps {
@@ -35,6 +37,11 @@ export function TranscriptSidebar({
   const [editText, setEditText] = useState("");
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const activeChunkRef = useRef<HTMLDivElement>(null);
+
+  // Process transcript chunks based on the current mode
+  const displayChunks = useMemo(() => {
+    return processTranscriptChunks(transcript, mode);
+  }, [transcript, mode]);
 
   // Add effect to scroll to active chunk when currentTime changes
   useEffect(() => {
@@ -88,18 +95,30 @@ export function TranscriptSidebar({
 
   const startEditing = (index: number) => {
     setEditingIndex(index);
-    setEditText(transcript.chunks[index].text);
+    setEditText(displayChunks[index].text);
   };
 
   const saveEdit = () => {
     if (editingIndex === null) return;
 
+    // For phrase mode, we need to handle editing differently
+    // since we're editing processed chunks, not the original chunks
+    if (mode === "phrase") {
+      // In phrase mode, we would need more complex logic to update the original chunks
+      // For now, we'll just update the display and show a warning
+      console.warn("Editing in phrase mode is not fully supported yet. Changes may not persist.");
+    }
+
     // Create a new transcript object with the updated chunk
     const updatedChunks = [...transcript.chunks];
-    updatedChunks[editingIndex] = {
-      ...updatedChunks[editingIndex],
-      text: editText,
-    };
+    
+    // For word mode, direct update
+    if (mode === "word") {
+      updatedChunks[editingIndex] = {
+        ...updatedChunks[editingIndex],
+        text: editText,
+      };
+    }
 
     const updatedTranscript = {
       text: updatedChunks.map((chunk) => chunk.text).join(" "),
@@ -121,18 +140,79 @@ export function TranscriptSidebar({
     setEditText("");
   };
 
+  const toggleChunkDisabled = (index: number) => {
+    if (mode === "phrase") {
+      // For phrase mode, we need to toggle the disabled state of all word chunks
+      // that make up this phrase
+      const phraseToToggle = displayChunks[index];
+      if (phraseToToggle.words) {
+        const isCurrentlyDisabled = phraseToToggle.words.some(word => 
+          transcript.chunks.find(chunk => 
+            chunk.timestamp[0] === word.timestamp[0] && 
+            chunk.timestamp[1] === word.timestamp[1]
+          )?.disabled
+        );
+
+        const updatedChunks = transcript.chunks.map(originalChunk => {
+          const isPartOfPhrase = phraseToToggle.words!.some(phraseWord => 
+            phraseWord.timestamp[0] === originalChunk.timestamp[0] &&
+            phraseWord.timestamp[1] === originalChunk.timestamp[1]
+          );
+          
+          if (isPartOfPhrase) {
+            return { ...originalChunk, disabled: !isCurrentlyDisabled };
+          }
+          return originalChunk;
+        });
+
+        const updatedTranscript = {
+          text: updatedChunks.filter(chunk => !chunk.disabled).map((chunk) => chunk.text).join(" "),
+          chunks: updatedChunks,
+        };
+
+        if (onTranscriptUpdate) {
+          onTranscriptUpdate(updatedTranscript);
+        }
+      }
+    } else {
+      // For word mode, direct toggle
+      const updatedChunks = transcript.chunks.map((chunk, i) => 
+        i === index ? { ...chunk, disabled: !chunk.disabled } : chunk
+      );
+      
+      const updatedTranscript = {
+        text: updatedChunks.filter(chunk => !chunk.disabled).map((chunk) => chunk.text).join(" "),
+        chunks: updatedChunks,
+      };
+
+      if (onTranscriptUpdate) {
+        onTranscriptUpdate(updatedTranscript);
+      }
+    }
+  };
+
   return (
     <div className={`flex flex-col h-full ${className}`}>
       <div className="flex-1 overflow-y-auto" ref={transcriptContainerRef}>
         <div className="space-y-2 p-2">
-          {transcript.chunks.map((chunk, i) => {
+          {displayChunks.map((chunk, i) => {
             const [start, end] = chunk.timestamp;
             const isActive = start <= currentTime && currentTime < end;
             const isEditing = editingIndex === i;
+            
+            // Check if this chunk is disabled
+            const isDisabled = mode === "phrase" 
+              ? chunk.words?.some(word => 
+                  transcript.chunks.find(originalChunk => 
+                    originalChunk.timestamp[0] === word.timestamp[0] && 
+                    originalChunk.timestamp[1] === word.timestamp[1]
+                  )?.disabled
+                )
+              : transcript.chunks[i]?.disabled;
 
             return (
               <div
-                key={i}
+                key={`${mode}-${i}-${start}`} // Include mode in key to force re-render when mode changes
                 ref={isActive ? activeChunkRef : null}
                 className={`p-2 rounded ${
                   isEditing ? "bg-muted" : "hover:bg-muted cursor-pointer"
@@ -140,6 +220,8 @@ export function TranscriptSidebar({
                   isActive && !isEditing
                     ? "bg-muted border-l-4 border-black"
                     : ""
+                } ${
+                  isDisabled ? "opacity-50 bg-gray-100 border-l-4 border-gray-400" : ""
                 }`}
                 onClick={() => {
                   if (!isEditing) {
@@ -167,6 +249,8 @@ export function TranscriptSidebar({
                           e.stopPropagation();
                           cancelEdit();
                         }}
+                        variant="neutral"
+                        size="sm"
                       >
                         Cancel
                       </Button>
@@ -175,6 +259,7 @@ export function TranscriptSidebar({
                           e.stopPropagation();
                           saveEdit();
                         }}
+                        size="sm"
                       >
                         Save
                       </Button>
@@ -182,20 +267,35 @@ export function TranscriptSidebar({
                   </div>
                 ) : (
                   <div className="flex justify-between items-start">
-                    <p className={isActive ? "font-medium" : ""}>
+                    <p className={`${isActive ? "font-medium" : ""} ${isDisabled ? "line-through text-gray-500" : ""}`}>
                       {chunk.text}
                     </p>
-                    <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(i);
-                      }}
-                      className="ml-2 p-1 "
-                      title="Edit text"
-                      size={"icon"}
-                    >
-                      <Edit />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditing(i);
+                        }}
+                        className="p-1"
+                        title="Edit text"
+                        size="icon"
+                        variant="noShadow"
+                      >
+                        <Edit className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleChunkDisabled(i);
+                        }}
+                        className={`p-1 ${isDisabled ? "text-green-600 hover:text-green-800" : "text-gray-500 hover:text-gray-700"}`}
+                        title={isDisabled ? "Enable section" : "Disable section"}
+                        size="icon"
+                        variant="noShadow"
+                      >
+                        {isDisabled ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

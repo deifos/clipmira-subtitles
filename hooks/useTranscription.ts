@@ -3,6 +3,8 @@ import { extractAudioFromVideo } from "@/lib/audio-utils";
 
 export type TranscriptionStatus =
   | "idle"
+  | "loading"
+  | "extracting"
   | "uploading"
   | "transcribing"
   | "processing"
@@ -18,6 +20,8 @@ export interface TranscriptionResult {
 
 export const STATUS_MESSAGES: Record<TranscriptionStatus, string> = {
   idle: "Ready to start",
+  loading: "Loading model...",
+  extracting: "Extracting audio...",
   uploading: "Uploading video...",
   transcribing: "Transcribing audio...",
   processing: "Processing video...",

@@ -54,28 +54,47 @@ export function processTranscriptChunks(
     chunks: Array<{
       text: string;
       timestamp: [number, number];
+      disabled?: boolean;
     }>;
   },
   mode: "word" | "phrase" = "word"
 ): Array<{
   text: string;
   timestamp: [number, number];
+  disabled?: boolean;
+  words?: Array<{
+    text: string;
+    timestamp: [number, number];
+  }>;
 }> {
   if (mode === "word") {
     return transcript.chunks;
   }
 
-  // For phrase mode, combine chunks that are close in time
+  // For phrase mode, create shorter, more readable phrases
   const processedChunks: Array<{
     text: string;
     timestamp: [number, number];
+    disabled?: boolean;
+    words: Array<{
+      text: string;
+      timestamp: [number, number];
+    }>;
   }> = [];
 
   let currentGroup: {
     texts: string[];
+    words: Array<{
+      text: string;
+      timestamp: [number, number];
+    }>;
     start: number;
     end: number;
   } | null = null;
+
+  const MAX_PHRASE_WORDS = 6; // Limit phrases to 6 words max
+  const MAX_PHRASE_DURATION = 3.0; // Limit phrases to 3 seconds max
+  const MAX_GAP = 0.5; // Slightly larger gap tolerance
 
   transcript.chunks.forEach((chunk, index) => {
     const [start, end] = chunk.timestamp;
@@ -83,28 +102,49 @@ export function processTranscriptChunks(
 
     if (!text) return; // Skip empty chunks
 
+    const wordData = { text, timestamp: [start, end] as [number, number] };
+
     if (!currentGroup) {
       currentGroup = {
         texts: [text],
+        words: [wordData],
         start,
         end,
       };
     } else {
-      // If the gap between chunks is small enough (0.3s), combine them
-      if (start - currentGroup.end <= 0.3) {
-        currentGroup.texts.push(text);
-        currentGroup.end = end;
-      } else {
-        // Gap is too large, create a new group
+      const timeSinceLastWord = start - currentGroup.end;
+      const currentDuration = currentGroup.end - currentGroup.start;
+      const wouldExceedWordLimit = currentGroup.texts.length >= MAX_PHRASE_WORDS;
+      const wouldExceedDuration = (end - currentGroup.start) > MAX_PHRASE_DURATION;
+      
+      // Check if we should end the current phrase
+      const shouldEndPhrase = 
+        timeSinceLastWord > MAX_GAP || 
+        wouldExceedWordLimit || 
+        wouldExceedDuration ||
+        // End phrase at natural breaks (punctuation)
+        /[.!?]$/.test(currentGroup.texts[currentGroup.texts.length - 1]) ||
+        // End phrase at commas if we already have 3+ words
+        (/[,;:]$/.test(currentGroup.texts[currentGroup.texts.length - 1]) && currentGroup.texts.length >= 3);
+
+      if (shouldEndPhrase) {
+        // End current phrase and start a new one
         processedChunks.push({
           text: currentGroup.texts.join(" "),
           timestamp: [currentGroup.start, currentGroup.end],
+          words: currentGroup.words,
         });
         currentGroup = {
           texts: [text],
+          words: [wordData],
           start,
           end,
         };
+      } else {
+        // Continue building current phrase
+        currentGroup.texts.push(text);
+        currentGroup.words.push(wordData);
+        currentGroup.end = end;
       }
     }
 
@@ -113,6 +153,7 @@ export function processTranscriptChunks(
       processedChunks.push({
         text: currentGroup.texts.join(" "),
         timestamp: [currentGroup.start, currentGroup.end],
+        words: currentGroup.words,
       });
     }
   });

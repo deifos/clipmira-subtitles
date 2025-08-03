@@ -37,6 +37,10 @@ const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   borderColor: "#000000", // Black border
   animated: true, // Default to animated
   dropShadowIntensity: 0.9, // Default shadow intensity
+  wordHighlightEnabled: true,
+  wordHighlightColor: "#FFFF00",
+  wordHighlightAnimation: "glow",
+  wordHighlightIntensity: 0.7,
 };
 
 export default function Home() {
@@ -258,7 +262,7 @@ export default function Home() {
       <section className="w-full bg-gradient-to-r from-primary/10 to-primary/5 py-20">
         <div className="container mx-auto px-4 md:px-6 flex flex-col items-center text-center space-y-8">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-            Clipmira <span className="text-primary">Subtitle Generator</span>
+            Brutalist <span className="text-primary">Subtitle Generator</span>
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl">
             Transform your videos with accurate, customizable subtitles powered

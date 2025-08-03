@@ -16,6 +16,7 @@ interface VideoUploadProps {
     chunks: Array<{
       text: string;
       timestamp: [number, number];
+      disabled?: boolean;
     }>;
   } | null;
   currentTime?: number;
@@ -44,6 +45,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
   ) => {
     const [videoSrc, setVideoSrc] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [isSkipping, setIsSkipping] = useState(false);
 
     // Reset video source when ref.current.src is empty
     useEffect(() => {
@@ -115,6 +117,68 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       [handleFile]
     );
 
+    // Function to get disabled time ranges
+    const getDisabledRanges = useCallback(() => {
+      if (!transcript) return [];
+      
+      const disabledRanges: Array<[number, number]> = [];
+      
+      transcript.chunks.forEach(chunk => {
+        if (chunk.disabled) {
+          disabledRanges.push(chunk.timestamp);
+        }
+      });
+      
+      // Sort ranges by start time and merge overlapping ranges
+      disabledRanges.sort((a, b) => a[0] - b[0]);
+      const mergedRanges: Array<[number, number]> = [];
+      
+      for (const range of disabledRanges) {
+        if (mergedRanges.length === 0 || mergedRanges[mergedRanges.length - 1][1] < range[0]) {
+          mergedRanges.push(range);
+        } else {
+          // Merge overlapping ranges
+          mergedRanges[mergedRanges.length - 1][1] = Math.max(
+            mergedRanges[mergedRanges.length - 1][1],
+            range[1]
+          );
+        }
+      }
+      
+      return mergedRanges;
+    }, [transcript]);
+
+    // Function to handle time updates and skip disabled segments
+    const handleTimeUpdate = useCallback(
+      (e: React.SyntheticEvent<HTMLVideoElement>) => {
+        const video = e.currentTarget;
+        const currentTime = video.currentTime;
+        
+        // Call the original onTimeUpdate
+        onTimeUpdate?.(currentTime);
+        
+        // Skip disabled segments
+        if (!isSkipping && transcript) {
+          const disabledRanges = getDisabledRanges();
+          
+          for (const [start, end] of disabledRanges) {
+            // If current time is within a disabled range, skip to the end
+            if (currentTime >= start && currentTime < end) {
+              setIsSkipping(true);
+              video.currentTime = end + 0.1; // Add small buffer to avoid edge cases
+              
+              // Reset skipping flag after a short delay
+              setTimeout(() => {
+                setIsSkipping(false);
+              }, 100);
+              break;
+            }
+          }
+        }
+      },
+      [onTimeUpdate, transcript, isSkipping, getDisabledRanges]
+    );
+
     return (
       <div
         className={cn(
@@ -152,16 +216,23 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
                 </div>
               </>
             )}
-            <video
-              ref={ref}
-              src={videoSrc}
-              controls
-              className={cn(
-                "max-h-[500px] object-contain",
-                ratio === "16:9" ? "w-full" : "w-auto h-full"
+            <div className="relative">
+              <video
+                ref={ref}
+                src={videoSrc}
+                controls
+                className={cn(
+                  "max-h-[500px] object-contain",
+                  ratio === "16:9" ? "w-full" : "w-auto h-full"
+                )}
+                onTimeUpdate={handleTimeUpdate}
+              />
+              {isSkipping && (
+                <div className="absolute top-4 right-4 bg-black bg-opacity-75 text-white px-3 py-1 rounded-md text-sm font-medium">
+                  ⏭️ Skipping disabled segment
+                </div>
               )}
-              onTimeUpdate={(e) => onTimeUpdate?.(e.currentTarget.currentTime)}
-            />
+            </div>
             {transcript && (
               <VideoCaption
                 transcript={transcript}
