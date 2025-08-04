@@ -101,6 +101,8 @@ export function processTranscriptChunks(
     const text = chunk.text.trim();
 
     if (!text) return; // Skip empty chunks
+    // Skip disabled chunks
+    if (chunk.disabled) return;
 
     const wordData = { text, timestamp: [start, end] as [number, number] };
 
