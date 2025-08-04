@@ -103,16 +103,11 @@ export function useVideoDownload({
           processingVideo.currentTime <= chunk.timestamp[1]
       );
       
-      // Debug subtitle detection more frequently
-      if (Math.floor(processingVideo.currentTime * 4) % 4 === 0) { // Every 0.25 seconds
-        const debugTime = Math.floor(processingVideo.currentTime * 10) / 10;
-        if (debugTime !== (Math.floor((processingVideo.currentTime - 0.25) * 10) / 10)) {
-          console.log(`Subtitle debug at ${debugTime}s: ${currentChunks.length} chunks found (${enabledChunks.length} total chunks)`);
-          if (currentChunks.length > 0) {
-            console.log(`- Current text: "${currentChunks[0].text}"`);
-          } else if (enabledChunks.length > 0) {
-            console.log(`- Next chunk starts at: ${enabledChunks[0].timestamp[0]}s`);
-          }
+      // Debug subtitle detection every 2 seconds (less spam)
+      if (Math.floor(processingVideo.currentTime) % 2 === 0 && Math.floor(processingVideo.currentTime * 10) % 10 === 0) {
+        console.log(`Subtitle debug at ${processingVideo.currentTime.toFixed(1)}s: ${currentChunks.length} chunks found`);
+        if (currentChunks.length > 0) {
+          console.log(`- Current text: "${currentChunks[0].text}"`);
         }
       }
       
@@ -285,111 +280,35 @@ export function useVideoDownload({
         nonEmptyLines.forEach((line, index) => {
           let lineY = textStartY + index * lineHeight;
 
-          if (false) { // Temporarily disable complex phrase rendering
-            // For phrase mode with word highlighting, render word by word
-            const words = line.split(' ');
-            let currentX = x - ctx.measureText(line).width / 2; // Start from left edge
-            
-            words.forEach((word, wordIndex) => {
-              const isCurrentWord = currentWordInPhrase && word.includes(currentWordInPhrase.text.replace(/[^\w]/g, ''));
-              
-              // Save the current context state before any modifications
-              ctx.save();
-              
-              // Apply word highlighting effects like the preview
-              if (isCurrentWord) {
-                switch (subtitleStyle.wordHighlightAnimation) {
-                  case 'glow':
-                    const intensity = subtitleStyle.wordHighlightIntensity;
-                    const glowColor = subtitleStyle.wordHighlightColor;
-                    ctx.shadowColor = glowColor;
-                    ctx.shadowBlur = 15 * intensity;
-                    break;
-                  case 'scale':
-                    // Scale effect - increase font size (use the processed font family)
-                    const scaleFontString = `${subtitleStyle.fontWeight} ${Math.round(actualFontSize * (1 + subtitleStyle.wordHighlightIntensity * 0.3))}px ${fontFamily}`;
-                    ctx.font = scaleFontString;
-                    break;
-                  case 'bounce':
-                    // Bounce effect - vertical offset
-                    lineY -= 3 * subtitleStyle.wordHighlightIntensity;
-                    break;
-                  case 'pulse':
-                    // Pulse effect - opacity variation
-                    ctx.globalAlpha = 0.7 + 0.3 * subtitleStyle.wordHighlightIntensity;
-                    break;
-                }
-              }
-              
-              // Draw text border/stroke if specified
-              if (subtitleStyle.borderWidth > 0) {
-                ctx.fillStyle = subtitleStyle.borderColor;
-                const strokeSize = subtitleStyle.borderWidth;
+          // Regular rendering for both word and phrase modes
+          // Draw text border/stroke if specified
+          if (subtitleStyle.borderWidth > 0) {
+            ctx.fillStyle = subtitleStyle.borderColor;
+            const strokeSize = subtitleStyle.borderWidth;
 
-                const strokeOffsets = [
-                  [-strokeSize, -strokeSize], [0, -strokeSize], [strokeSize, -strokeSize],
-                  [-strokeSize, 0], [strokeSize, 0],
-                  [-strokeSize, strokeSize], [0, strokeSize], [strokeSize, strokeSize],
-                ];
+            const strokeOffsets = [
+              [-strokeSize, -strokeSize], [0, -strokeSize], [strokeSize, -strokeSize],
+              [-strokeSize, 0], [strokeSize, 0],
+              [-strokeSize, strokeSize], [0, strokeSize], [strokeSize, strokeSize],
+            ];
 
-                strokeOffsets.forEach(([offsetX, offsetY]) => {
-                  ctx.fillText(word, currentX + offsetX, lineY + offsetY);
-                });
-              }
-
-              // Draw the main text with gradient support
-              if (subtitleStyle.color === "#CCCCCC" || subtitleStyle.color === "#C0C0C0") {
-                // Create metallic gradient like the preview
-                const gradient = ctx.createLinearGradient(currentX, lineY - actualFontSize * 0.5, currentX, lineY + actualFontSize * 0.5);
-                gradient.addColorStop(0, "#FFFFFF");
-                gradient.addColorStop(0.5, "#CCCCCC");
-                gradient.addColorStop(1, "#999999");
-                ctx.fillStyle = gradient;
-              } else {
-                ctx.fillStyle = subtitleStyle.color;
-              }
-              ctx.fillText(word, currentX, lineY);
-              
-              // Calculate word width with current font settings (before restore)
-              const wordWidth = ctx.measureText(word + ' ').width;
-              
-              // Restore context to clean state for next word
-              ctx.restore();
-              
-              // Move to next word position using the measured width
-              currentX += wordWidth;
+            strokeOffsets.forEach(([offsetX, offsetY]) => {
+              ctx.fillText(line, x + offsetX, lineY + offsetY);
             });
-          } else {
-            // Regular rendering without word highlighting
-            // Draw text border/stroke if specified
-            if (subtitleStyle.borderWidth > 0) {
-              ctx.fillStyle = subtitleStyle.borderColor;
-              const strokeSize = subtitleStyle.borderWidth;
-
-              const strokeOffsets = [
-                [-strokeSize, -strokeSize], [0, -strokeSize], [strokeSize, -strokeSize],
-                [-strokeSize, 0], [strokeSize, 0],
-                [-strokeSize, strokeSize], [0, strokeSize], [strokeSize, strokeSize],
-              ];
-
-              strokeOffsets.forEach(([offsetX, offsetY]) => {
-                ctx.fillText(line, x + offsetX, lineY + offsetY);
-              });
-            }
-
-            // Draw the main text with gradient support
-            if (subtitleStyle.color === "#CCCCCC" || subtitleStyle.color === "#C0C0C0") {
-              // Create metallic gradient like the preview
-              const gradient = ctx.createLinearGradient(x - maxWidth/2, lineY - finalFontSize * 0.5, x + maxWidth/2, lineY + finalFontSize * 0.5);
-              gradient.addColorStop(0, "#FFFFFF");
-              gradient.addColorStop(0.5, "#CCCCCC");
-              gradient.addColorStop(1, "#999999");
-              ctx.fillStyle = gradient;
-            } else {
-              ctx.fillStyle = subtitleStyle.color;
-            }
-            ctx.fillText(line, x, lineY);
           }
+
+          // Draw the main text with gradient support
+          if (subtitleStyle.color === "#CCCCCC" || subtitleStyle.color === "#C0C0C0") {
+            // Create metallic gradient like the preview
+            const gradient = ctx.createLinearGradient(x - maxWidth/2, lineY - actualFontSize * 0.5, x + maxWidth/2, lineY + actualFontSize * 0.5);
+            gradient.addColorStop(0, "#FFFFFF");
+            gradient.addColorStop(0.5, "#CCCCCC");
+            gradient.addColorStop(1, "#999999");
+            ctx.fillStyle = gradient;
+          } else {
+            ctx.fillStyle = subtitleStyle.color;
+          }
+          ctx.fillText(line, x, lineY);
         });
       }
 
