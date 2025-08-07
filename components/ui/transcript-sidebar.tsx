@@ -37,6 +37,7 @@ export function TranscriptSidebar({
   const [editText, setEditText] = useState("");
   const transcriptContainerRef = useRef<HTMLDivElement>(null);
   const activeChunkRef = useRef<HTMLDivElement>(null);
+  const [currentActiveElement, setCurrentActiveElement] = useState<HTMLDivElement | null>(null);
 
   // Process transcript chunks based on the current mode
   const displayChunks = useMemo(() => {
@@ -45,32 +46,82 @@ export function TranscriptSidebar({
 
   // Add effect to scroll to active chunk when currentTime changes
   useEffect(() => {
-    if (activeChunkRef.current && transcriptContainerRef.current) {
-      const container = transcriptContainerRef.current;
-      const activeElement = activeChunkRef.current;
-      
-      // Get the container and element positions
-      const containerRect = container.getBoundingClientRect();
-      const elementRect = activeElement.getBoundingClientRect();
-      
-      // Check if element is outside the visible area of the container
-      const isAbove = elementRect.top < containerRect.top;
-      const isBelow = elementRect.bottom > containerRect.bottom;
-      
-      if (isAbove || isBelow) {
-        // Calculate the scroll position to center the element in the container
-        const containerHeight = container.clientHeight;
-        const elementHeight = activeElement.offsetHeight;
-        const scrollTop = activeElement.offsetTop - containerHeight / 2 + elementHeight / 2;
+    // Add a small delay to ensure the DOM has updated with the new active state
+    const timeoutId = setTimeout(() => {
+      if (currentActiveElement && transcriptContainerRef.current) {
+        const container = transcriptContainerRef.current;
+        const activeElement = currentActiveElement;
         
-        // Smooth scroll within the container only
-        container.scrollTo({
-          top: Math.max(0, scrollTop),
-          behavior: "smooth"
+        // Get the actual scrollable area bounds
+        const containerRect = container.getBoundingClientRect();
+        const elementRect = activeElement.getBoundingClientRect();
+        
+        // Use scrollTop and clientHeight to determine the actual visible scroll area
+        const scrollTop = container.scrollTop;
+        const clientHeight = container.clientHeight;
+        const scrollBottom = scrollTop + clientHeight;
+        
+        // Get element position within the scrollable content
+        const elementOffsetTop = activeElement.offsetTop;
+        const elementOffsetBottom = elementOffsetTop + activeElement.offsetHeight;
+        
+        // Calculate if element is visible within the scrollable viewport
+        const isElementAboveViewport = elementOffsetTop < scrollTop;
+        const isElementBelowViewport = elementOffsetBottom > scrollBottom;
+        
+        console.log('Scroll debug:', {
+          currentTime,
+          hasActiveElement: !!activeElement,
+          containerScrollTop: scrollTop,
+          containerClientHeight: clientHeight,
+          containerScrollHeight: container.scrollHeight,
+          scrollBottom,
+          elementOffsetTop,
+          elementOffsetBottom,
+          containerRectHeight: containerRect.height,
+          elementTop: elementRect.top,
+          elementBottom: elementRect.bottom,
+          isElementAboveViewport,
+          isElementBelowViewport,
+          needsScroll: isElementAboveViewport || isElementBelowViewport,
+          containerClassName: container.className,
+          containerTagName: container.tagName,
+          containerComputedStyle: {
+            height: window.getComputedStyle(container).height,
+            maxHeight: window.getComputedStyle(container).maxHeight,
+            overflowY: window.getComputedStyle(container).overflowY
+          }
+        });
+        
+        if (isElementAboveViewport || isElementBelowViewport) {
+          // Calculate the scroll position to center the element in the container
+          const newScrollTop = elementOffsetTop - clientHeight / 2 + activeElement.offsetHeight / 2;
+          
+          console.log('Scrolling to:', {
+            elementOffsetTop,
+            containerClientHeight: clientHeight,
+            calculatedScrollTop: newScrollTop,
+            finalScrollTop: Math.max(0, newScrollTop)
+          });
+          
+          // Smooth scroll within the container only
+          container.scrollTo({
+            top: Math.max(0, newScrollTop),
+            behavior: "smooth"
+          });
+        } else {
+          console.log('Element is already visible, no scroll needed');
+        }
+      } else {
+        console.log('Missing refs:', {
+          hasCurrentActiveElement: !!currentActiveElement,
+          hasContainerRef: !!transcriptContainerRef.current
         });
       }
-    }
-  }, [currentTime]);
+    }, 100); // Increased delay to ensure DOM updates
+
+    return () => clearTimeout(timeoutId);
+  }, [currentTime, currentActiveElement]);
 
   const jsonTranscript = useMemo(() => {
     return JSON.stringify(transcript, null, 2).replace(
@@ -211,12 +262,13 @@ export function TranscriptSidebar({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      <div className="flex-1 overflow-y-auto" ref={transcriptContainerRef}>
+      <div className="flex-1 overflow-y-auto max-h-96" ref={transcriptContainerRef}>
         <div className="space-y-2 p-2">
           {displayChunks.map((chunk, i) => {
             const [start, end] = chunk.timestamp;
-            const isActive = start <= currentTime && currentTime < end;
+            const isActive = start <= currentTime && currentTime <= end;
             const isEditing = editingIndex === i;
+            
             
             // Check if this chunk is disabled
             const isDisabled = mode === "phrase" 
@@ -231,7 +283,12 @@ export function TranscriptSidebar({
             return (
               <div
                 key={`${mode}-${i}-${start}`} // Include mode in key to force re-render when mode changes
-                ref={isActive ? activeChunkRef : null}
+                ref={isActive && !isDisabled ? (el) => {
+                  if (el) {
+                    setCurrentActiveElement(el);
+                    activeChunkRef.current = el;
+                  }
+                } : null}
                 className={`p-2 rounded ${
                   isEditing ? "bg-muted" : "hover:bg-muted cursor-pointer"
                 } transition-colors ${
