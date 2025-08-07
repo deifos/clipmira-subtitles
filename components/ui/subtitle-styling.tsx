@@ -12,20 +12,16 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 
 export interface SubtitleStyle {
-  fontFamily: string;
+  fontFamily: string; // Note: FFmpeg uses single font file, family switching limited
   fontSize: number;
   fontWeight: string;
   color: string;
   backgroundColor: string;
   borderWidth: number;
   borderColor: string;
-  animated: boolean;
   dropShadowIntensity: number;
-  // Word highlighting options
-  wordHighlightEnabled: boolean;
-  wordHighlightColor: string;
-  wordHighlightAnimation: "none" | "glow" | "scale" | "bounce" | "pulse";
-  wordHighlightIntensity: number;
+  // Removed: animated, wordHighlightEnabled, wordHighlightColor, wordHighlightAnimation, wordHighlightIntensity
+  // FFmpeg drawtext doesn't support animations or word highlighting
 }
 
 interface SubtitleStylingProps {
@@ -56,7 +52,9 @@ const fontSizeOptions = [
   { value: 16, label: "Small" },
   { value: 20, label: "Medium" },
   { value: 24, label: "Large" },
-  { value: 42, label: "X Large" },
+  { value: 28, label: "X Large" },
+  { value: 32, label: "XX Large" },
+  { value: 42, label: "Huge" },
 ];
 
 const fontWeightOptions = [
@@ -108,28 +106,8 @@ export function SubtitleStyling({
     onChange({ ...style, borderColor: e.target.value });
   };
 
-  const handleAnimationToggle = (checked: boolean) => {
-    onChange({ ...style, animated: checked });
-  };
-
   const handleDropShadowIntensityChange = (value: string) => {
     onChange({ ...style, dropShadowIntensity: Number(value) });
-  };
-
-  const handleWordHighlightToggle = (checked: boolean) => {
-    onChange({ ...style, wordHighlightEnabled: checked });
-  };
-
-  const handleWordHighlightColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({ ...style, wordHighlightColor: e.target.value });
-  };
-
-  const handleWordHighlightAnimationChange = (value: string) => {
-    onChange({ ...style, wordHighlightAnimation: value as any });
-  };
-
-  const handleWordHighlightIntensityChange = (value: string) => {
-    onChange({ ...style, wordHighlightIntensity: Number(value) });
   };
 
   // Enhanced preset styles with better sizing for CapCut-like experience
@@ -137,18 +115,13 @@ export function SubtitleStyling({
     onChange({
       ...style,
       fontFamily: "var(--font-bebas-neue), Arial, sans-serif",
-      fontSize: 28, // Reduced from 42 to be more like CapCut
-      fontWeight: "400",
+      fontSize: 28, // Now uses "X Large" option for impact
+      fontWeight: "normal", // Fixed: was "400", now matches "Normal" option
       color: "#CCCCCC", // Metallic silver
       backgroundColor: "transparent",
       borderWidth: 2,
       borderColor: "#000000",
-      animated: true,
       dropShadowIntensity: 0.8,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#FFD700", // Gold highlight
-      wordHighlightAnimation: "glow",
-      wordHighlightIntensity: 0.9,
     });
   };
 
@@ -157,18 +130,13 @@ export function SubtitleStyling({
     onChange({
       ...style,
       fontFamily: "var(--font-oswald), Arial, sans-serif",
-      fontSize: 26, // Reduced from 42
-      fontWeight: "600",
+      fontSize: 28, // Now uses "X Large" option for better visibility
+      fontWeight: "bold", // Fixed: was "600", now matches "Bold" option
       color: "#00FF41", // Matrix green
       backgroundColor: "transparent",
       borderWidth: 2,
       borderColor: "#000000",
-      animated: true,
       dropShadowIntensity: 0.7,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#FFFFFF",
-      wordHighlightAnimation: "scale",
-      wordHighlightIntensity: 0.8,
     });
   };
 
@@ -177,18 +145,13 @@ export function SubtitleStyling({
     onChange({
       ...style,
       fontFamily: "var(--font-poppins), Arial, sans-serif",
-      fontSize: 24, // Reduced from 42
-      fontWeight: "700",
+      fontSize: 24, // Already correct - matches "Large" option
+      fontWeight: "bold", // Fixed: was "700", now matches "Bold" option
       color: "#FFD700", // Gold instead of bright yellow
       backgroundColor: "#000000",
       borderWidth: 0,
       borderColor: "#000000",
-      animated: true,
       dropShadowIntensity: 0.6,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#FFFFFF",
-      wordHighlightAnimation: "pulse",
-      wordHighlightIntensity: 0.7,
     });
   };
 
@@ -203,12 +166,7 @@ export function SubtitleStyling({
       backgroundColor: "#FFFF00", // Yellow background
       borderWidth: 0,
       borderColor: "#000000",
-      animated: true,
       dropShadowIntensity: 0.3,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#FF0000",
-      wordHighlightAnimation: "bounce",
-      wordHighlightIntensity: 0.5,
     });
   };
 
@@ -217,18 +175,13 @@ export function SubtitleStyling({
     onChange({
       ...style,
       fontFamily: "var(--font-open-sans), Arial, sans-serif",
-      fontSize: 22,
-      fontWeight: "600",
+      fontSize: 20, // Fixed: was 22, now matches "Medium" option
+      fontWeight: "bold", // Fixed: was "600", now matches "Bold" option
       color: "#FFFFFF",
       backgroundColor: "rgba(0, 0, 0, 0.8)", // Semi-transparent black
       borderWidth: 0,
       borderColor: "#000000",
-      animated: false,
       dropShadowIntensity: 0.4,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#00BFFF", // Sky blue highlight
-      wordHighlightAnimation: "glow",
-      wordHighlightIntensity: 0.6,
     });
   };
 
@@ -237,18 +190,13 @@ export function SubtitleStyling({
     onChange({
       ...style,
       fontFamily: "var(--font-montserrat), Arial, sans-serif",
-      fontSize: 26,
-      fontWeight: "800",
+      fontSize: 32, // Now uses "XX Large" option for TikTok impact
+      fontWeight: "800", // Already correct - matches "Extra Bold" option
       color: "#FFFFFF",
       backgroundColor: "transparent",
       borderWidth: 3,
       borderColor: "#FF1493", // Hot pink border
-      animated: true,
       dropShadowIntensity: 0.9,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#FF1493",
-      wordHighlightAnimation: "bounce",
-      wordHighlightIntensity: 1.0,
     });
   };
 
@@ -257,18 +205,13 @@ export function SubtitleStyling({
     onChange({
       ...style,
       fontFamily: "var(--font-bangers), Arial, sans-serif",
-      fontSize: 28,
-      fontWeight: "400",
+      fontSize: 42, // Fixed: was 28, now matches "X Large" option for impact
+      fontWeight: "normal", // Fixed: was "400", now matches "Normal" option
       color: "#00FFFF", // Cyan
       backgroundColor: "transparent",
       borderWidth: 2,
       borderColor: "#FF00FF", // Magenta border
-      animated: true,
       dropShadowIntensity: 0.8,
-      wordHighlightEnabled: true,
-      wordHighlightColor: "#FFFF00",
-      wordHighlightAnimation: "scale",
-      wordHighlightIntensity: 0.9,
     });
   };
 
@@ -550,87 +493,7 @@ export function SubtitleStyling({
           </div>
         </div>
 
-        {/* Animation Settings */}
-        <div className="space-y-2 pt-4 border-t">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="animation"
-              checked={style.animated}
-              onCheckedChange={handleAnimationToggle}
-            />
-            <Label htmlFor="animation">Enable Subtitle Animations</Label>
-          </div>
-        </div>
-
-        {/* Word Highlighting Settings */}
-        <div className="space-y-2">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="wordHighlight"
-              checked={style.wordHighlightEnabled}
-              onCheckedChange={handleWordHighlightToggle}
-            />
-            <Label htmlFor="wordHighlight">Enable Word Highlighting</Label>
-          </div>
-        </div>
-
-        {style.wordHighlightEnabled && (
-          <>
-            <div className="space-y-2">
-              <label className="text-sm font-medium block">Highlight Color</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={style.wordHighlightColor}
-                  onChange={handleWordHighlightColorChange}
-                  className="w-10 h-10 rounded cursor-pointer"
-                />
-                <span className="text-sm">{style.wordHighlightColor}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium block">Highlight Animation</label>
-              <Select
-                value={style.wordHighlightAnimation}
-                onValueChange={handleWordHighlightAnimationChange}
-              >
-                <SelectTrigger className="w-full p-2 border rounded-md bg-background">
-                  <SelectValue placeholder="Select animation" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="none">None</SelectItem>
-                    <SelectItem value="glow">Glow</SelectItem>
-                    <SelectItem value="scale">Scale</SelectItem>
-                    <SelectItem value="bounce">Bounce</SelectItem>
-                    <SelectItem value="pulse">Pulse</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium block">
-                Highlight Intensity
-              </label>
-              <Slider
-                value={[style.wordHighlightIntensity * 100]}
-                onValueChange={(values) =>
-                  handleWordHighlightIntensityChange((values[0] / 100).toString())
-                }
-                min={0}
-                max={100}
-                step={1}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>Subtle</span>
-                <span>Strong</span>
-              </div>
-            </div>
-          </>
-        )}
+        {/* Animation and word highlighting removed - not supported by FFmpeg drawtext */}
       </div>
 
       <div className="mt-4">
@@ -664,7 +527,7 @@ export function SubtitleStyling({
               2,
               style.dropShadowIntensity * 5
             )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
-            animation: style.animated ? "subtitleBounce 2s infinite" : "none",
+            // Animation removed - not supported by FFmpeg drawtext
           }}
         >
           {isImportantActive ? "IMPORTANT" :

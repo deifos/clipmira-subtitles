@@ -227,10 +227,7 @@ function generateSRT(chunks: any[], subtitleStyle: SubtitleStyle): string {
       text = `<b>${text}</b>`;
     }
     
-    // Add word-level highlighting if enabled and in phrase mode
-    if (subtitleStyle.wordHighlightEnabled && chunk.words) {
-      text = addWordHighlighting(text, chunk.words, subtitleStyle);
-    }
+    // Word highlighting removed - not supported by FFmpeg drawtext
 
     srtContent += `${index + 1}\n`;
     srtContent += `${startTime} --> ${endTime}\n`;
@@ -255,11 +252,7 @@ function formatSRTTime(seconds: number): string {
 }
 
 // Add word-level highlighting to text
-function addWordHighlighting(text: string, words: any[], subtitleStyle: SubtitleStyle): string {
-  // For now, return the text as-is since FFmpeg subtitle styling is limited
-  // We could implement custom ASS styling here for more advanced effects
-  return text;
-}
+// addWordHighlighting function removed - not supported by FFmpeg drawtext
 
 // Create drawtext filters for each subtitle chunk
 function createDrawtextFilters(chunks: any[], subtitleStyle: SubtitleStyle, ratio: "16:9" | "9:16"): string[] {

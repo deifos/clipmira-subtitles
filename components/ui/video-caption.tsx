@@ -86,24 +86,12 @@ export function VideoCaption({
       // Set new text
       setCurrentText(text);
 
-      // Only trigger animation if enabled
-      if (style.animated) {
-        // Trigger initial animation in the next frame
-        requestAnimationFrame(() => {
-          setIsAnimating(true);
-
-          // After initial animation, start settling animation
-          setTimeout(() => {
-            setIsSettling(true);
-          }, 200); // Faster initial animation
-        });
-      } else {
-        // If animation is disabled, just show the text immediately
-        setIsAnimating(true);
-        setIsSettling(true);
-      }
+      // Animation removed - not supported by FFmpeg drawtext
+      // Just show the text immediately
+      setIsAnimating(true);
+      setIsSettling(true);
     }
-  }, [currentChunks, currentText, style.animated]);
+  }, [currentChunks, currentText]); // Animation removed
 
   if (currentChunks.length === 0) return null;
 
@@ -123,53 +111,14 @@ export function VideoCaption({
           const isCurrentWord = currentWordInPhrase && word.text === currentWordInPhrase.text && 
                                word.timestamp[0] === currentWordInPhrase.timestamp[0];
           
-          // Generate animation styles based on settings
-          const getAnimationStyles = () => {
-            if (!style.wordHighlightEnabled || !isCurrentWord) {
-              return {};
-            }
-
-            const intensity = style.wordHighlightIntensity;
-            const color = style.wordHighlightColor;
-            
-            switch (style.wordHighlightAnimation) {
-              case "glow":
-                return {
-                  textShadow: `0 0 ${10 * intensity}px ${color}, 0 0 ${20 * intensity}px ${color}`,
-                  filter: `brightness(${1 + intensity * 0.5})`,
-                };
-              case "scale":
-                return {
-                  transform: `scale(${1 + intensity * 0.3})`,
-                  backgroundColor: `${color}${Math.round(intensity * 51).toString(16).padStart(2, '0')}`,
-                };
-              case "bounce":
-                return {
-                  animation: `wordBounce 0.6s ease-out`,
-                  backgroundColor: `${color}${Math.round(intensity * 51).toString(16).padStart(2, '0')}`,
-                };
-              case "pulse":
-                return {
-                  animation: `wordPulse 1s ease-in-out infinite`,
-                  backgroundColor: `${color}${Math.round(intensity * 51).toString(16).padStart(2, '0')}`,
-                };
-              default:
-                return {
-                  backgroundColor: `${color}${Math.round(intensity * 51).toString(16).padStart(2, '0')}`,
-                };
-            }
-          };
+          // Word highlighting removed - not supported by FFmpeg drawtext
 
           return (
             <React.Fragment key={`${word.timestamp[0]}-${index}`}>
               <span
                 style={{
-                  borderRadius: isCurrentWord && style.wordHighlightEnabled ? '3px' : '0',
-                  padding: isCurrentWord && style.wordHighlightEnabled ? '2px 4px' : '0',
-                  transition: 'all 0.15s ease-in-out',
-                  fontWeight: isCurrentWord && style.wordHighlightEnabled ? 'bolder' : 'inherit',
+                  // Word highlighting styling removed - not supported by FFmpeg drawtext
                   display: 'inline-block',
-                  ...getAnimationStyles(),
                 }}
               >
                 {word.text}
@@ -241,17 +190,10 @@ export function VideoCaption({
           ...(!(style.color === "#CCCCCC" || style.color === "#C0C0C0") && {
             backgroundColor: style.backgroundColor,
           }),
-          // Only apply transform animation if enabled
-          transform: style.animated
-            ? `scale(${scale}) translateY(${translateY}px) translateX(${translateX}px)`
-            : "scale(1) translateY(0)",
+          // Animation removed - not supported by FFmpeg drawtext
+          transform: "scale(1) translateY(0)",
           opacity: isAnimating ? 1 : 0,
-          // Only apply transition if animation is enabled
-          transition: style.animated
-            ? isSettling
-              ? "transform 0.15s cubic-bezier(0.34, 1.3, 0.64, 1)"
-              : "transform 0.18s cubic-bezier(0.16, 1, 0.3, 1.4), opacity 0.08s ease-in"
-            : "opacity 0.15s ease-in", // Simple fade in when animations disabled
+          transition: "opacity 0.15s ease-in",
         }}
       >
         <div className="flex flex-col gap-1">
