@@ -266,8 +266,12 @@ function createDrawtextFilters(chunks: any[], subtitleStyle: SubtitleStyle, rati
   const isVertical = ratio === "9:16";
   const filters: string[] = [];
   
-  // Base font settings - simplified
-  const fontSize = Math.max(subtitleStyle.fontSize, 32); // Larger for visibility
+  // Scale font size appropriately for video
+  const fontSize = Math.max(subtitleStyle.fontSize * 1.5, 32); // Scale up for video visibility
+  
+  // Convert hex color to FFmpeg format (remove #)
+  const fontColor = subtitleStyle.color.replace('#', '');
+  const borderColor = subtitleStyle.borderColor.replace('#', '');
   
   chunks.forEach((chunk, index) => {
     const startTime = chunk.timestamp[0];
@@ -275,16 +279,51 @@ function createDrawtextFilters(chunks: any[], subtitleStyle: SubtitleStyle, rati
     // Clean text - remove extra spaces and escape properly
     const text = chunk.text.trim().replace(/'/g, "\\'");
     
-    // Simple positioning - bottom center
-    const yPosition = isVertical ? 'h-120' : 'h-100'; // More margin from bottom
+    // Positioning based on aspect ratio
+    const yPosition = isVertical ? 'h-h*0.15' : 'h-h*0.12'; // Percentage-based positioning
     
-    // Create drawtext filter with font file and proper syntax
-    let filter = `drawtext=fontfile=font.ttf:text='${text}'`;
+    // Create drawtext filter with full styling
+    let filter = `drawtext=fontfile=font.ttf:text='${text.toUpperCase()}'`; // Uppercase like preview
     filter += `:fontsize=${fontSize}`;
-    filter += `:fontcolor=white`; // White text for visibility
+    filter += `:fontcolor=${fontColor}`; // Use user's color choice
+    
+    // Make font bold/heavy to match preview weight
+    // Note: Limited font weight control in drawtext, but we can simulate with border
+    if (subtitleStyle.fontWeight === '700' || subtitleStyle.fontWeight === '800' || subtitleStyle.fontWeight === '900' || subtitleStyle.fontWeight === 'bold') {
+      // Add a subtle same-color border to make text appear bolder
+      filter += `:borderw=1:bordercolor=${fontColor}`;
+    }
+    
+    // Add border/outline if specified (in addition to bold effect)
+    if (subtitleStyle.borderWidth > 0) {
+      filter += `:borderw=${subtitleStyle.borderWidth * 2}`; // Scale border for visibility
+      filter += `:bordercolor=${borderColor}`;
+    }
+    
+    // Add shadow to match preview (2px 2px 3px with 0.6 opacity)
+    if (subtitleStyle.dropShadowIntensity > 0) {
+      filter += `:shadowx=2:shadowy=2`; // Match CSS: 2px 2px
+      filter += `:shadowcolor=000000@0.6`; // Match CSS: rgba(0,0,0,0.6)
+    }
+    
+    // Add background box if specified
+    if (subtitleStyle.backgroundColor && subtitleStyle.backgroundColor !== 'transparent') {
+      const bgColor = subtitleStyle.backgroundColor.replace('#', '');
+      // Match CSS padding: px-3 (0.75rem = 12px) and py-2 (0.5rem = 8px)
+      const paddingH = Math.max(12, fontSize * 0.3); // Minimum 12px like px-3
+      const paddingV = Math.max(8, fontSize * 0.2);  // Minimum 8px like py-2
+      
+      filter += `:box=1:boxcolor=${bgColor}`; // Full opacity solid background
+      filter += `:boxborderw=${paddingH}`; // Horizontal padding
+      
+      // Note: FFmpeg drawtext doesn't support border-radius: 0.375rem (6px)
+      // The background will be rectangular instead of rounded-md
+    }
+    
+    // Positioning and timing
     filter += `:x=(w-text_w)/2`; // Center horizontally
     filter += `:y=${yPosition}`; // Position from bottom
-    filter += `:enable='between(t,${startTime},${endTime})'`; // Simplified enable syntax
+    filter += `:enable='between(t,${startTime},${endTime})'`; // Show during timestamp
     
     filters.push(filter);
   });
