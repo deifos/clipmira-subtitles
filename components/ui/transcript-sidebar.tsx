@@ -46,11 +46,29 @@ export function TranscriptSidebar({
   // Add effect to scroll to active chunk when currentTime changes
   useEffect(() => {
     if (activeChunkRef.current && transcriptContainerRef.current) {
-      // Scroll the active chunk into view with smooth behavior
-      activeChunkRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      const container = transcriptContainerRef.current;
+      const activeElement = activeChunkRef.current;
+      
+      // Get the container and element positions
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = activeElement.getBoundingClientRect();
+      
+      // Check if element is outside the visible area of the container
+      const isAbove = elementRect.top < containerRect.top;
+      const isBelow = elementRect.bottom > containerRect.bottom;
+      
+      if (isAbove || isBelow) {
+        // Calculate the scroll position to center the element in the container
+        const containerHeight = container.clientHeight;
+        const elementHeight = activeElement.offsetHeight;
+        const scrollTop = activeElement.offsetTop - containerHeight / 2 + elementHeight / 2;
+        
+        // Smooth scroll within the container only
+        container.scrollTo({
+          top: Math.max(0, scrollTop),
+          behavior: "smooth"
+        });
+      }
     }
   }, [currentTime]);
 

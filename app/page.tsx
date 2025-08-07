@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 import { useTranscription, STATUS_MESSAGES } from "@/hooks/useTranscription";
-import { useVideoDownload } from "@/hooks/useVideoDownload";
+import { useVideoDownloadFFmpeg } from "@/hooks/useVideoDownloadFFmpeg";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Default subtitle style
@@ -65,7 +65,7 @@ export default function Home() {
     resetTranscription,
   } = useTranscription();
 
-  const { handleDownloadVideo } = useVideoDownload({
+  const { handleDownloadVideo } = useVideoDownloadFFmpeg({
     videoRef,
     result,
     subtitleStyle,

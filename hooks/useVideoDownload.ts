@@ -1,12 +1,30 @@
 import { SubtitleStyle } from "@/components/ui/subtitle-styling";
 import { TranscriptionStatus } from "@/hooks/useTranscription";
 import { processTranscriptChunks } from "@/lib/utils";
+import html2canvas from 'html2canvas';
+
+// Type definitions for VideoFrameCallback API
+interface VideoFrameCallbackMetadata {
+  presentationTime: DOMHighResTimeStamp;
+  mediaTime: number;
+  presentedFrames: number;
+  processingDuration: number;
+  expectedDisplayTime: DOMHighResTimeStamp;
+}
+
+declare global {
+  interface HTMLVideoElement {
+    requestVideoFrameCallback(callback: (now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => void): number;
+    cancelVideoFrameCallback(handle: number): void;
+  }
+}
 
 interface TranscriptionResult {
   text: string;
   chunks: Array<{
     text: string;
     timestamp: [number, number];
+    disabled?: boolean;
   }>;
 }
 
@@ -29,549 +47,610 @@ export function useVideoDownload({
   mode,
   ratio,
 }: UseVideoDownloadProps) {
-  const handleDownloadVideo = () => {
+  const handleDownloadVideo = async () => {
     if (!videoRef.current || !videoRef.current.src || !result) {
       console.error("No video source or transcript available");
       return;
     }
 
-    // Store the original video source and state
-    const originalSrc = videoRef.current.src;
-    const originalCurrentTime = videoRef.current.currentTime;
-    const originalVolume = videoRef.current.volume;
-    const originalMuted = videoRef.current.muted;
-
     setStatus("processing");
     setProgress(0);
+    console.log("Starting video download with exact subtitle matching");
 
-    // Create canvas and context for rendering
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      console.error("Could not get canvas context");
-      setStatus("idle");
-      return;
-    }
-
-    // Set canvas dimensions to match video
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-
-    // Create a temporary video element for visual processing only
-    const processingVideo = document.createElement("video");
-    processingVideo.src = originalSrc;
-    processingVideo.muted = true;
-    processingVideo.crossOrigin = "anonymous";
-    processingVideo.style.display = "none";
-    document.body.appendChild(processingVideo);
-
-    // We'll use the original video for audio, but we'll hide it from the user
-    // Store original styles to restore later
-    const originalStyle = videoRef.current.style.cssText;
-
-    // Hide the original video but keep it playing for audio
-    videoRef.current.style.opacity = "0";
-    videoRef.current.style.position = "absolute";
-    videoRef.current.style.zIndex = "-1000";
-    videoRef.current.style.pointerEvents = "none";
-
-    // Prepare for recording
-    let mediaRecorder: MediaRecorder | null = null;
-    const chunks: Blob[] = [];
-    let animationId: number | null = null;
-
-    // Function to render a frame with subtitles
-    const renderFrame = () => {
-      if (!processingVideo || !ctx || !videoRef.current) return;
-
-      // Clear the canvas first
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw video frame
-      ctx.drawImage(processingVideo, 0, 0, canvas.width, canvas.height);
-
-      // Process chunks according to the current mode
-      const processedChunks = processTranscriptChunks(result, mode);
-
-      // Filter out disabled chunks for the downloaded video
-      const enabledChunks = processedChunks.filter(chunk => !chunk.disabled);
-
-      // Find current subtitle chunk - use processingVideo time for consistency
-      const currentChunks = enabledChunks.filter(
-        (chunk) =>
-          processingVideo.currentTime >= chunk.timestamp[0] &&
-          processingVideo.currentTime <= chunk.timestamp[1]
-      );
+    try {
+      // Create a new video element for processing
+      const processingVideo = document.createElement('video');
+      processingVideo.src = videoRef.current.src;
+      processingVideo.crossOrigin = 'anonymous';
+      processingVideo.muted = true;
       
-      // Debug subtitle detection every 2 seconds (less spam)
-      if (Math.floor(processingVideo.currentTime) % 2 === 0 && Math.floor(processingVideo.currentTime * 10) % 10 === 0) {
-        console.log(`Subtitle debug at ${processingVideo.currentTime.toFixed(1)}s: ${currentChunks.length} chunks found`);
-        if (currentChunks.length > 0) {
-          console.log(`- Current text: "${currentChunks[0].text}"`);
-        }
-      }
-      
-      // For phrase mode with word highlighting, find the current word
-      let currentWordInPhrase = null;
-      if (mode === "phrase" && currentChunks.length > 0 && currentChunks[0].words) {
-        currentWordInPhrase = currentChunks[0].words.find(
-          (word: any) =>
-            processingVideo.currentTime >= word.timestamp[0] &&
-            processingVideo.currentTime <= word.timestamp[1]
-        );
+      // Wait for video metadata to load
+      await new Promise((resolve, reject) => {
+        processingVideo.onloadedmetadata = resolve;
+        processingVideo.onerror = reject;
+      });
+
+      // Create canvas for rendering
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
       }
 
-      if (currentChunks.length > 0) {
-        // Get combined text
-        const text = currentChunks.map((chunk) => chunk.text).join(" ");
+      // Set canvas dimensions based on ratio - balance quality and file size
+      const targetWidth = ratio === '9:16' ? 720 : 1280; // Good quality, reasonable file size
+      const targetHeight = ratio === '9:16' ? 1280 : 720;
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      
+      // Enable image smoothing for better quality
+      ctx.imageSmoothingEnabled = true;
+      console.log(`Video dimensions: ${processingVideo.videoWidth}x${processingVideo.videoHeight}`);
+      console.log(`Canvas dimensions: ${canvas.width}x${canvas.height}`);
+      console.log(`Video duration: ${processingVideo.duration}s`);
 
-        // Calculate aspect ratio and adjust positioning accordingly
-        const isVerticalVideo = ratio === "9:16";
+      // Track if capture is active and render timer
+      let captureActive = true;
+      let renderTimer: NodeJS.Timeout;
 
-        // Adjust text splitting based on aspect ratio and text length
-        const words = text.split(" ");
-        const midpoint = Math.ceil(words.length / 2);
-
-        // For landscape videos, use more aggressive text splitting for longer text
-        const shouldSplitText =
-          isVerticalVideo || (ratio === "16:9" && words.length > 6);
-
-        // Create lines of text - for landscape with long text, split into more lines if needed
-        let lines;
-        if (shouldSplitText) {
-          if (ratio === "16:9" && words.length > 12) {
-            // For very long text in landscape, split into 3 lines
-            const third = Math.ceil(words.length / 3);
-            lines = [
-              words.slice(0, third).join(" "),
-              words.slice(third, third * 2).join(" "),
-              words.slice(third * 2).join(" "),
-            ];
-          } else {
-            // Standard 2-line split
-            lines = [
-              words.slice(0, midpoint).join(" "),
-              words.slice(midpoint).join(" "),
-            ];
-          }
-        } else {
-          lines = [text];
+      // Setup MediaRecorder with consistent frame rate
+      // Explicitly set 30 FPS for better stability
+      const stream = canvas.captureStream(); // Fixed 30 FPS for stability
+      
+      // Add audio from original video if available
+      if (processingVideo.captureStream) {
+        try {
+          const videoStream = processingVideo.captureStream();
+          const audioTracks = videoStream.getAudioTracks();
+          audioTracks.forEach(track => {
+            stream.addTrack(track);
+          });
+          console.log(`Added ${audioTracks.length} audio tracks`);
+        } catch (error) {
+          console.warn('Could not capture audio:', error);
         }
+      }
 
-        // Filter out empty lines
-        const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+      // Optimized quality settings with better audio
+      let mediaRecorderOptions;
+      if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+        mediaRecorderOptions = {
+          mimeType: 'video/webm;codecs=vp9',
+          videoBitsPerSecond: 3000000,
+          audioBitsPerSecond: 128000, // Higher audio bitrate
+        };
+      } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {
+        mediaRecorderOptions = {
+          mimeType: 'video/webm;codecs=vp8',
+          videoBitsPerSecond: 2500000,
+          audioBitsPerSecond: 128000,
+        };
+      } else {
+        mediaRecorderOptions = {
+          videoBitsPerSecond: 2500000,
+          audioBitsPerSecond: 128000,
+        };
+      }
 
-        if (nonEmptyLines.length === 0) return;
+      const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
 
-        // Use the exact same positioning as the preview component
-        // Preview uses: bottom-[16%] for landscape, bottom-[8%] for portrait
-        const bottomPercent = isVerticalVideo ? 0.08 : 0.16;
-        const x = canvas.width / 2;
-        const y = canvas.height - (canvas.height * bottomPercent);
+      const chunks: Blob[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
 
-        // Scale font size to match preview appearance - use the default as reference
-        // Default works well at 42px -> 69px, so maintain that ratio for all fonts
-        const scaleFactor = 1.64; // 69/42 from working default
-        const finalFontSize = Math.round(subtitleStyle.fontSize * scaleFactor);
+      mediaRecorder.onstop = () => {
+        // Mark capture as inactive
+        captureActive = false;
         
-        // Debug logging to see what's happening
-        console.log(`Font sizing debug:`);
-        console.log(`- Original font size: ${subtitleStyle.fontSize}px`);
-        console.log(`- Canvas size: ${canvas.width}x${canvas.height}`);
-        console.log(`- Scale factor: ${scaleFactor.toFixed(2)}`);
-        console.log(`- Final font size: ${finalFontSize}px`);
+        // Force download if we have data
+        if (chunks.length > 0) {
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          
+          const downloadLink = document.createElement('a');
+          downloadLink.href = url;
+          downloadLink.download = `video_with_subtitles_${Date.now()}.webm`;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          
+          URL.revokeObjectURL(url);
+          setProgress(100);
+          setStatus("ready");
+          console.log("Video download completed successfully");
+        } else {
+          console.warn('No data recorded, download skipped');
+          setStatus("ready");
+          setProgress(0);
+        }
+      };
 
-        // Set font properties using the final calculated font size
-        // Canvas doesn't support CSS custom properties like var(--font-poppins)
-        // Extract the fallback font or map to actual font names
+      // Render frame function with proper subtitle styling
+      const renderFrame = async (currentTime: number) => {
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw video frame
+        ctx.save();
+        
+        // Calculate video scaling to fit canvas while maintaining aspect ratio
+        const videoAspect = processingVideo.videoWidth / processingVideo.videoHeight;
+        const canvasAspect = canvas.width / canvas.height;
+        
+        let drawWidth, drawHeight, offsetX, offsetY;
+        
+        if (videoAspect > canvasAspect) {
+          // Video is wider - fit to canvas width
+          drawWidth = canvas.width;
+          drawHeight = canvas.width / videoAspect;
+          offsetX = 0;
+          offsetY = (canvas.height - drawHeight) / 2;
+        } else {
+          // Video is taller - fit to canvas height
+          drawHeight = canvas.height;
+          drawWidth = canvas.height * videoAspect;
+          offsetX = (canvas.width - drawWidth) / 2;
+          offsetY = 0;
+        }
+        
+        ctx.drawImage(processingVideo, offsetX, offsetY, drawWidth, drawHeight);
+        ctx.restore();
+
+        // Render subtitles - allow async rendering for html2canvas support
+        await renderSubtitles(ctx, currentTime, canvas.width, canvas.height);
+      };
+
+      // Try DOM-based rendering first, fall back to canvas rendering
+      const renderSubtitles = async (ctx: CanvasRenderingContext2D, currentTime: number, canvasWidth: number, canvasHeight: number) => {
+        const processedChunks = processTranscriptChunks(result, mode);
+        const enabledChunks = processedChunks.filter(chunk => !chunk.disabled);
+
+        const currentChunks = enabledChunks.filter(
+          (chunk) => currentTime >= chunk.timestamp[0] && currentTime <= chunk.timestamp[1]
+        );
+
+        if (currentChunks.length === 0) return;
+
+        // Try DOM capture approach if first attempt
+        try {
+          // Find the subtitle element in the DOM
+          const subtitleElement = document.querySelector('.caption-container') as HTMLElement;
+      
+          if (subtitleElement && captureActive) {
+            // Clone and patch the element with current style before capture
+            const subtitleClone = subtitleElement.cloneNode(true) as HTMLElement;
+            Object.assign(subtitleClone.style, {
+              fontSize: `${subtitleStyle.fontSize}px`,
+              fontFamily: subtitleStyle.fontFamily,
+              color: subtitleStyle.color,
+              backgroundColor: subtitleStyle.backgroundColor
+            });
+            // If we have a subtitle element, capture its exact rendering with html2canvas
+            try {
+              // Only try to capture if we haven't already failed
+              const canvasCapture = await html2canvas(subtitleClone, {
+                backgroundColor: null,
+                logging: false,
+                allowTaint: true,
+                useCORS: true,
+                scale: 1,  // Use 1:1 scale for accurate sizing
+                width: subtitleElement.offsetWidth,
+                height: subtitleElement.offsetHeight,
+                imageTimeout: 5000  // Add timeout for image loading
+              } as any);
+              
+              // Calculate scale for high-quality rendering
+              const scale = Math.max(canvasWidth / 1920, canvasHeight / 1080, 1.5);
+              const scaledWidth = canvasCapture.width * scale;
+              const scaledHeight = canvasCapture.height * scale;
+              
+              // Draw the captured subtitles at the correct position with scaling
+              const isVerticalVideo = ratio === "9:16";
+              const x = (canvasWidth - scaledWidth) / 2;
+              const baseY = canvasHeight - (canvasHeight * (isVerticalVideo ? 0.08 : 0.16));
+              const y = baseY - scaledHeight;
+              
+              // Draw the captured subtitle with high quality scaling
+              ctx.imageSmoothingEnabled = false;  // Disable smoothing for crisp text
+              ctx.drawImage(canvasCapture, x, y, scaledWidth, scaledHeight);
+              return; // Exit if DOM capture worked
+            } catch (captureError) {
+              console.warn('Failed to capture DOM subtitles, falling back to canvas rendering:', captureError);
+              captureActive = false; // Don't try again if it failed
+            }
+          }
+        } catch (domError) {
+          console.warn('Error with DOM approach, using canvas fallback:', domError);
+          captureActive = false;
+        }
+        
+        // Fall back to canvas rendering if DOM capture failed
+        const text = currentChunks.map((chunk) => chunk.text).join(" ");
+        const isVerticalVideo = ratio === "9:16";
+        
+        // Find current word for highlighting (phrase mode) with position tracking
+        let currentWordInPhrase = null;
+        let currentWordIndex = -1;
+        if (mode === "phrase" && currentChunks.length > 0) {
+          const currentChunk = currentChunks[0];
+          if (currentChunk.words) {
+            // Find the current word and track its index for accurate positioning
+            for (let i = 0; i < currentChunk.words.length; i++) {
+              const word = currentChunk.words[i];
+              // Check if current time is within this word's timestamp
+              if (currentTime >= word.timestamp[0] && currentTime <= word.timestamp[1]) {
+                currentWordInPhrase = {
+                  ...word,
+                  originalIndex: i // Store the original position in the phrase
+                };
+                currentWordIndex = i;
+                break;
+              }
+            }
+          }
+        }
+
+        // Text wrapping logic (same as preview component)
+        const words = text.split(" ");
+        const maxWordsPerLine = isVerticalVideo ? 4 : 6;
+        const shouldSplitText = words.length > maxWordsPerLine;
+        
+        let line1 = text;
+        let line2 = "";
+        
+        if (shouldSplitText) {
+          const midpoint = Math.ceil(words.length / 2);
+          let splitPoint = midpoint;
+          
+          for (let i = Math.max(2, midpoint - 2); i <= Math.min(words.length - 2, midpoint + 2); i++) {
+            if (/[,;:.!?]$/.test(words[i])) {
+              splitPoint = i + 1;
+              break;
+            }
+          }
+          
+          line1 = words.slice(0, splitPoint).join(" ");
+          line2 = words.slice(splitPoint).join(" ");
+        }
+
+        // Get the actual preview container size for more accurate scaling
+        const previewContainer = document.querySelector('.video-container') as HTMLElement | null;
+        const previewWidth = previewContainer?.clientWidth || 800;
+        
+        // Calculate scale based on video resolution for high quality
+        const videoScale = Math.max(canvasWidth / 1920, canvasHeight / 1080, 1);
+        const baseScale = Math.max(videoScale * 2.5, canvasWidth / previewWidth, 2); // Higher quality scaling
+        
+        // Scale font size for better readability in video
+        const scaledFontSize = Math.round(subtitleStyle.fontSize * baseScale * 1.2);
+        
+        // Handle CSS custom properties in font family
         let fontFamily = subtitleStyle.fontFamily;
         if (fontFamily.includes('var(')) {
-          // Extract fallback fonts after the comma, or use a safe default
           const fallbackMatch = fontFamily.match(/,\s*(.+)$/);
           fontFamily = fallbackMatch ? fallbackMatch[1] : 'Arial, sans-serif';
-          console.log(`Converted CSS custom property font to: ${fontFamily}`);
         }
         
-        const fontString = `${subtitleStyle.fontWeight} ${finalFontSize}px ${fontFamily}`;
-        ctx.font = fontString;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        ctx.font = `${subtitleStyle.fontWeight} ${scaledFontSize}px ${fontFamily}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         
-        console.log(`Font applied: ${fontString}`);
+        console.log(`Font: ${ctx.font}, Canvas: ${canvasWidth}x${canvasHeight}, Scale: ${baseScale}`);
+
+        // Position - exactly matching the preview's CSS
+        const x = canvasWidth / 2;
+        const baseY = canvasHeight - (canvasHeight * (isVerticalVideo ? 0.08 : 0.16));
         
-        // Enable text rendering optimizations for better quality
-        if ('textRendering' in ctx) ctx.textRendering = "optimizeLegibility";
-        if ('fontKerning' in ctx) ctx.fontKerning = "normal";
-        if ('letterSpacing' in ctx) ctx.letterSpacing = "0.02em";
+        const lines = shouldSplitText ? [line1, line2] : [text];
+        const lineHeight = scaledFontSize * 1.4; // Match preview line spacing
+        const totalHeight = lines.length * lineHeight;
+        let startY = baseY - totalHeight / 2 + lineHeight / 2;
 
-        // Use normal line spacing like the preview (1.2 is standard)
-        let lineHeight = finalFontSize * 1.2;
-        let totalTextHeight = nonEmptyLines.length * lineHeight;
-        let textStartY = y - totalTextHeight / 2 + lineHeight / 2;
-
-        // Calculate the overall background dimensions for all lines
-        let maxWidth = 0;
-        nonEmptyLines.forEach((line) => {
-          const metrics = ctx.measureText(line);
-          maxWidth = Math.max(maxWidth, metrics.width);
-        });
-
-        // Use the same width constraints as the preview: 90% for landscape, 85% for portrait
-        const maxAllowedWidth = canvas.width * (isVerticalVideo ? 0.85 : 0.9);
-        
-        // Only scale down font if the text is actually too wide
-        // This prevents unnecessary font scaling for shorter text
-        if (maxWidth > maxAllowedWidth) {
-          console.log(`Text too wide: ${maxWidth}px > ${maxAllowedWidth}px, scaling font down`);
-          const scaleFactor = maxAllowedWidth / maxWidth;
-          const newFontSize = Math.max(Math.floor(finalFontSize * scaleFactor), 16); // Minimum 16px
-          ctx.font = `${subtitleStyle.fontWeight} ${newFontSize}px ${subtitleStyle.fontFamily}`;
-
-          // Recalculate dimensions with new font size
-          maxWidth = 0;
-          nonEmptyLines.forEach((line) => {
-            const metrics = ctx.measureText(line);
+        // Draw background with exact CSS values
+        if (subtitleStyle.backgroundColor && subtitleStyle.backgroundColor !== "transparent") {
+          // Use exact CSS values for padding and border radius
+          const borderRadius = 8 * baseScale; // Matches rounded-md (8px)
+          const paddingX = 12 * baseScale;    // Matches px-3 (12px)
+          const paddingY = 8 * baseScale;     // Matches py-2 (8px)
+          
+          let maxWidth = 0;
+          
+          // Measure all lines to get the true maximum width
+          lines.forEach(line => {
+            const metrics = ctx.measureText(line.toUpperCase());
             maxWidth = Math.max(maxWidth, metrics.width);
           });
-          lineHeight = newFontSize * 1.2;
-          totalTextHeight = nonEmptyLines.length * lineHeight;
-          textStartY = y - totalTextHeight / 2 + lineHeight / 2;
-          
-          console.log(`Scaled to ${newFontSize}px, new width: ${maxWidth}px`);
-        }
 
-        // Scale padding proportionally to actual font size being used
-        const actualFontSize = parseInt(ctx.font.match(/(\d+)px/)?.[1] || finalFontSize.toString());
-        const basePaddingRatio = 12 / 24; // 12px padding for 24px font in preview  
-        const paddingX = Math.round(actualFontSize * basePaddingRatio);
-        const paddingY = Math.round(paddingX * 0.67); // py-2 is typically 2/3 of px-3
-        
-        console.log(`Padding debug: X=${paddingX}px, Y=${paddingY}px`);
-        console.log(`Background: "${subtitleStyle.backgroundColor}", Color: "${subtitleStyle.color}"`);
-        console.log(`Max width: ${maxWidth}px, Lines: ${nonEmptyLines.length}`);
-
-        // Draw a single background for all lines
-        if (subtitleStyle.backgroundColor && subtitleStyle.backgroundColor !== "transparent") {
-          // Apply background with proper opacity handling
-          const bgColor = subtitleStyle.backgroundColor;
+          // Draw rounded rectangle background to match preview exactly
+          ctx.fillStyle = subtitleStyle.backgroundColor;
           
-          // Extract opacity from rgba if present, otherwise use full opacity
-          let opacity = 1;
-          const rgbaMatch = bgColor.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,?\s*([0-9.]+)?\)/i);
-          if (rgbaMatch && rgbaMatch[1]) {
-            opacity = parseFloat(rgbaMatch[1]);
-          }
-          
-          ctx.fillStyle = bgColor;
-          const cornerRadius = Math.round(finalFontSize * 0.2); // Scale corner radius with font size
-          const bgX = x - maxWidth / 2 - paddingX;
-          const bgY = textStartY - lineHeight / 2 - paddingY;
-          const bgWidth = maxWidth + paddingX * 2;
-          const bgHeight = totalTextHeight + paddingY * 2;
-
-          ctx.globalAlpha = opacity;
+          // Use rounded rectangle for matching CSS border-radius
           ctx.beginPath();
-          ctx.roundRect(bgX, bgY, bgWidth, bgHeight, cornerRadius);
+          const bgX = x - maxWidth / 2 - paddingX;
+          const bgY = startY - lineHeight / 2 - paddingY;
+          const bgWidth = maxWidth + paddingX * 2;
+          const bgHeight = totalHeight + paddingY * 2;
+          
+          // Create rounded rect path
+          ctx.moveTo(bgX + borderRadius, bgY);
+          ctx.lineTo(bgX + bgWidth - borderRadius, bgY);
+          ctx.quadraticCurveTo(bgX + bgWidth, bgY, bgX + bgWidth, bgY + borderRadius);
+          ctx.lineTo(bgX + bgWidth, bgY + bgHeight - borderRadius);
+          ctx.quadraticCurveTo(bgX + bgWidth, bgY + bgHeight, bgX + bgWidth - borderRadius, bgY + bgHeight);
+          ctx.lineTo(bgX + borderRadius, bgY + bgHeight);
+          ctx.quadraticCurveTo(bgX, bgY + bgHeight, bgX, bgY + bgHeight - borderRadius);
+          ctx.lineTo(bgX, bgY + borderRadius);
+          ctx.quadraticCurveTo(bgX, bgY, bgX + borderRadius, bgY);
+          ctx.closePath();
+          
           ctx.fill();
-          ctx.globalAlpha = 1; // Reset alpha
         }
 
-        // Draw each line with word highlighting support
-        nonEmptyLines.forEach((line, index) => {
-          let lineY = textStartY + index * lineHeight;
-
-          // Regular rendering for both word and phrase modes
-          // Draw text border/stroke if specified
-          if (subtitleStyle.borderWidth > 0) {
-            ctx.fillStyle = subtitleStyle.borderColor;
-            const strokeSize = subtitleStyle.borderWidth;
-
-            const strokeOffsets = [
-              [-strokeSize, -strokeSize], [0, -strokeSize], [strokeSize, -strokeSize],
-              [-strokeSize, 0], [strokeSize, 0],
-              [-strokeSize, strokeSize], [0, strokeSize], [strokeSize, strokeSize],
-            ];
-
-            strokeOffsets.forEach(([offsetX, offsetY]) => {
-              ctx.fillText(line, x + offsetX, lineY + offsetY);
-            });
-          }
-
-          // Draw the main text with gradient support
-          if (subtitleStyle.color === "#CCCCCC" || subtitleStyle.color === "#C0C0C0") {
-            // Create metallic gradient like the preview
-            const gradient = ctx.createLinearGradient(x - maxWidth/2, lineY - actualFontSize * 0.5, x + maxWidth/2, lineY + actualFontSize * 0.5);
-            gradient.addColorStop(0, "#FFFFFF");
-            gradient.addColorStop(0.5, "#CCCCCC");
-            gradient.addColorStop(1, "#999999");
-            ctx.fillStyle = gradient;
-          } else {
-            ctx.fillStyle = subtitleStyle.color;
-          }
-          ctx.fillText(line, x, lineY);
+        // Draw all text normally first
+        lines.forEach((line, index) => {
+          const lineY = startY + index * lineHeight;
+          renderSimpleLine(ctx, line, x, lineY, scaledFontSize, baseScale);
         });
-      }
 
-      // Don't use requestAnimationFrame here - it conflicts with the setTimeout render loop
-      // The renderLoop function handles the timing
-      if (processingVideo.ended) {
-        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        // Then apply word highlighting as overlay if enabled
+        if (mode === "phrase" && currentWordInPhrase && subtitleStyle.wordHighlightEnabled) {
+          // Get all words from the current chunk for accurate positioning
+          const allWords = currentChunks[0].words || [];
+          renderWordHighlightOverlay(ctx, lines, startY, lineHeight, x, scaledFontSize, currentWordInPhrase, currentTime, baseScale, allWords);
+        }
+      };
+
+      // Helper function to render a simple line without highlighting
+      const renderSimpleLine = (ctx: CanvasRenderingContext2D, line: string, x: number, y: number, fontSize: number, baseScale: number = 1) => {
+        // Draw stroke/border - use exact border width from subtitleStyle
+        if (subtitleStyle.borderWidth > 0) {
+          ctx.strokeStyle = subtitleStyle.borderColor;
+          // Scale the border width directly from the style
+          ctx.lineWidth = subtitleStyle.borderWidth * baseScale;
+          ctx.strokeText(line.toUpperCase(), x, y);
+        }
+
+        // Handle CSS property conflict with background vs backgroundColor
+        let textFillStyle;
+        
+        // Draw main text - implement metallic gradient exactly as preview
+        if (subtitleStyle.color === "#CCCCCC" || subtitleStyle.color === "#C0C0C0") {
+          const textWidth = ctx.measureText(line.toUpperCase()).width;
+          const gradient = ctx.createLinearGradient(
+            x - textWidth/2, y - fontSize/2, 
+            x + textWidth/2, y + fontSize/2
+          );
+          // Exact gradient stops to match CSS
+          gradient.addColorStop(0, "#FFFFFF");
+          gradient.addColorStop(0.5, "#CCCCCC");
+          gradient.addColorStop(1, "#999999");
+          textFillStyle = gradient;
+        } else {
+          textFillStyle = subtitleStyle.color;
+        }
+        
+        // Apply the text style
+        ctx.fillStyle = textFillStyle;
+        ctx.fillText(line.toUpperCase(), x, y);
+      };
+
+      // Helper function to render word highlight overlay (like the preview)
+      const renderWordHighlightOverlay = (
+        ctx: CanvasRenderingContext2D, 
+        lines: string[], 
+        startY: number, 
+        lineHeight: number, 
+        centerX: number, 
+        fontSize: number, 
+        currentWord: any, 
+        currentTime: number,
+        baseScale: number = 1,
+        allWords: any[] = []
+      ) => {
+        if (!currentWord) return;
+        
+        const currentWordText = currentWord.text.replace(/[^\w]/g, '').toLowerCase();
+        const currentWordOriginalIndex = currentWord.originalIndex || -1;
+        
+        // Build the complete text to match against
+        const completeText = allWords.map(w => w.text).join(' ');
+        const completeWords = completeText.split(' ');
+        
+        lines.forEach((line, lineIndex) => {
+          const lineY = startY + lineIndex * lineHeight;
+          const words = line.split(' ');
+          const totalLineWidth = ctx.measureText(line.toUpperCase()).width;
+          let wordStartX = centerX - totalLineWidth / 2;
+          
+          // Calculate word offset for multi-line text
+          let wordOffset = 0;
+          if (lineIndex > 0) {
+            // Count words in all previous lines
+            for (let i = 0; i < lineIndex; i++) {
+              wordOffset += lines[i].split(' ').length;
+            }
+          }
+          
+          // Find which word matches the current spoken word using position
+          let highlightedWordIndex = -1;
+          for (let i = 0; i < words.length; i++) {
+            const absoluteIndex = wordOffset + i;
+            const cleanWord = words[i].replace(/[^\w]/g, '').toLowerCase();
+            
+            // Check if this is the correct word by matching position
+            if (absoluteIndex === currentWordOriginalIndex) {
+              highlightedWordIndex = i;
+              break;
+            }
+            // Fallback: if position doesn't match exactly, check text and proximity
+            else if (cleanWord === currentWordText && 
+                     Math.abs(absoluteIndex - currentWordOriginalIndex) <= 1) {
+              highlightedWordIndex = i;
+              break;
+            }
+          }
+          
+          if (highlightedWordIndex === -1) return; // No match found in this line
+          
+          // Calculate position of the highlighted word more precisely
+          for (let i = 0; i < highlightedWordIndex; i++) {
+            const word = words[i].toUpperCase();
+            const wordWidth = ctx.measureText(word).width;
+            const spaceWidth = ctx.measureText(' ').width;
+            wordStartX += wordWidth + spaceWidth;
+          }
+          
+          const highlightedWord = words[highlightedWordIndex].toUpperCase();
+          const wordWidth = ctx.measureText(highlightedWord).width;
+          const wordCenterX = wordStartX + wordWidth / 2;
+          
+          // Calculate highlight effects - enhanced to match preview exactly
+          const intensity = subtitleStyle.wordHighlightIntensity;
+          let scale = 1;
+          let glowRadius = 0;
+          
+          switch (subtitleStyle.wordHighlightAnimation) {
+            case 'scale':
+              scale = 1 + intensity * 0.3;
+              break;
+            case 'glow':
+              // Enhanced glow radius for better visibility in video
+              glowRadius = 25 * intensity * Math.max(baseScale, 1.5);
+              break;
+            case 'pulse':
+              const pulseTime = currentTime * 2;
+              const pulse = (Math.sin(pulseTime) + 1) / 2;
+              // Scale glow radius with baseScale
+              glowRadius = 20 * pulse * intensity * baseScale;
+              break;
+            case 'bounce':
+              const bounceTime = currentTime * 3;
+              const bounce = Math.abs(Math.sin(bounceTime));
+              scale = 1 + bounce * intensity * 0.2;
+              break;
+          }
+          
+          ctx.save();
+          
+          // Apply scaling transform
+          if (scale !== 1) {
+            ctx.translate(wordCenterX, lineY);
+            ctx.scale(scale, scale);
+            ctx.translate(-wordCenterX, -lineY);
+          }
+          
+          // Apply enhanced glow/shadow effect for highlighted word
+          if (glowRadius > 0) {
+            ctx.save();
+            ctx.shadowColor = subtitleStyle.wordHighlightColor;
+            ctx.shadowBlur = glowRadius;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            
+            // Draw multiple glow layers for stronger effect
+            for (let i = 0; i < 5; i++) {
+              ctx.globalAlpha = 0.8 - (i * 0.15);
+              ctx.fillText(highlightedWord, wordCenterX, lineY);
+            }
+            ctx.restore();
+          }
+          
+          // Draw the highlighted word with the highlight color
+          ctx.fillStyle = subtitleStyle.wordHighlightColor;
+          ctx.fillText(highlightedWord, wordStartX, lineY);
+          
+          ctx.restore();
+        });
+      };
+
+      // Start recording
+      mediaRecorder.start(50); // Small timeslices for smoother recording // Smaller chunks for better quality
+      
+      // Ensure video properties for better sync
+      processingVideo.playbackRate = 1.0;
+      processingVideo.volume = 1.0; // Make sure volume is at max
+      
+      // Start video playback
+      processingVideo.play();
+      console.log('Video playback started, using requestVideoFrameCallback for sync');
+      
+      // Render loop driven by decoded frames for perfect A/V sync
+      let rvfcHandle: number;
+      
+      const paintFrame = async (_now: DOMHighResTimeStamp, metadata: VideoFrameCallbackMetadata) => {
+        try {
+          if (processingVideo.ended || processingVideo.paused) {
+            console.log('Video ended, stopping recorder');
+            stream.getTracks().forEach(track => track.stop());  // Close all tracks
+            mediaRecorder.stop();
+            return;
+          }
+          
+          // Render frame synchronously to ensure it's complete before next frame
+          await renderFrame(metadata.mediaTime);
+          
+          // Update progress with fallback if duration is invalid
+          const progress = processingVideo.duration > 0 
+            ? (metadata.mediaTime / processingVideo.duration) * 100
+            : Math.min((metadata.mediaTime / 10) * 100, 95);  // Fallback if no duration
+          setProgress(Math.min(progress, 95));
+          
+          // Schedule next frame
+          rvfcHandle = processingVideo.requestVideoFrameCallback(paintFrame);
+        } catch (error) {
+          console.error('Error in render loop:', error);
+          stream.getTracks().forEach(track => track.stop());
           mediaRecorder.stop();
         }
-      }
-
-      // Update progress more frequently with better error handling
-      if (processingVideo.duration && processingVideo.duration > 0) {
-        const progress = (processingVideo.currentTime / processingVideo.duration) * 100;
-        setProgress(Math.min(progress, 100)); // Cap at 100%
-        
-        // Debug logging every 5 seconds
-        if (Math.floor(processingVideo.currentTime) % 5 === 0 && Math.floor(processingVideo.currentTime * 10) % 10 === 0) {
-          console.log(`Video progress: ${processingVideo.currentTime.toFixed(1)}s / ${processingVideo.duration.toFixed(1)}s (${progress.toFixed(1)}%)`);
-        }
-      }
-    };
-
-    // Function to start the recording process
-    const startRecording = () => {
-      // Enable high quality text rendering on the canvas context
-      if (ctx) {
-        // @ts-ignore - These properties may not be in TypeScript definitions but work in browsers
-        if ('textRendering' in ctx) ctx.textRendering = "optimizeLegibility";
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-      }
-
-      // Set up the canvas stream with stable frame rate for MediaRecorder
-      const canvasStream = canvas.captureStream(30); // Fixed 30 FPS for stable recording
+      };
       
-      // Get the audio from the processing video element (not the preview video)
-      // This way we don't interfere with the user's preview experience
-      if (processingVideo) {
-        // The processing video is already muted, but we can capture its stream for audio
-        processingVideo.muted = false; // Temporarily unmute only the hidden processing video
-        processingVideo.volume = 1.0; // Full volume for audio capture
-        
-        // Get the audio track from the processing video
-        const videoElement = processingVideo as HTMLVideoElement & {
-          captureStream?: () => MediaStream;
-          mozCaptureStream?: () => MediaStream;
-        };
-
-        const audioTracks =
-          videoElement.captureStream?.() ||
-          videoElement.mozCaptureStream?.() ||
-          null;
-
-        if (audioTracks && audioTracks.getAudioTracks().length > 0) {
-          // Add audio tracks to the canvas stream
-          audioTracks.getAudioTracks().forEach((track: MediaStreamTrack) => {
-            canvasStream.addTrack(track.clone());
-          });
-        } else {
-          console.warn("Could not capture audio tracks from video");
+      // Ensure we stop cleanly when video ends
+      processingVideo.onended = () => {
+        console.log('Video ended (onended), stopping recorder');
+        if (rvfcHandle) {
+          processingVideo.cancelVideoFrameCallback(rvfcHandle);
         }
-      }
-
-      // Create a MediaRecorder with the combined stream
-      // Try different codec combinations for better compatibility
-      let mimeType: string;
-      let recordingOptions: MediaRecorderOptions;
-
-      if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) {
-        mimeType = "video/mp4;codecs=h264,aac";
-        recordingOptions = {
-          mimeType,
-          videoBitsPerSecond: 5_000_000, // 5 Mbps for better compatibility
-          audioBitsPerSecond: 128_000, // 128 kbps for audio
-        };
-      } else if (MediaRecorder.isTypeSupported("video/mp4")) {
-        mimeType = "video/mp4";
-        recordingOptions = {
-          mimeType,
-          videoBitsPerSecond: 5_000_000,
-          audioBitsPerSecond: 128_000,
-        };
-      } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) {
-        mimeType = "video/webm;codecs=vp9,opus";
-        recordingOptions = {
-          mimeType,
-          videoBitsPerSecond: 4_000_000, // Lower bitrate for VP9
-          audioBitsPerSecond: 128_000,
-        };
-      } else {
-        // Fallback to basic WebM
-        mimeType = "video/webm";
-        recordingOptions = {
-          mimeType,
-          videoBitsPerSecond: 3_000_000,
-          audioBitsPerSecond: 128_000,
-        };
-      }
-
-      console.log(`Using codec: ${mimeType}`);
-      mediaRecorder = new MediaRecorder(canvasStream, recordingOptions);
-
-      const recordingInterval = 500; // Record in 0.5-second chunks for better quality
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
-
-      // Add error handling for MediaRecorder
-      mediaRecorder.onerror = (e) => {
-        console.error("MediaRecorder error:", e);
-        cleanup();
-      };
-
-      // Set up cleanup when recording stops
-      mediaRecorder.onstop = () => {
-        // Create a blob from the recorded chunks with proper MIME type and codecs
-        const blob = new Blob(chunks, { type: mimeType });
-
-        // Create download link with timestamp in filename
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        const extension = mimeType.includes("mp4") ? "mp4" : "webm";
-        a.download = `video_with_subtitles_${timestamp}.${extension}`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // Clean up
-        URL.revokeObjectURL(a.href);
-        document.body.removeChild(processingVideo);
-
-        // Restore the original video state
-        if (videoRef.current) {
-          videoRef.current.pause();
-          videoRef.current.currentTime = originalCurrentTime;
-          videoRef.current.volume = originalVolume;
-          videoRef.current.muted = originalMuted;
-          videoRef.current.style.cssText = originalStyle;
-        }
-
-        setStatus("ready");
-        setProgress(100);
-      };
-
-      // Start recording in smaller chunks for better seeking
-      mediaRecorder.start(recordingInterval);
-
-      // Start both videos
-      if (videoRef.current) {
-        videoRef.current.currentTime = 0;
-        processingVideo.currentTime = 0;
-
-        // Play both videos with a small delay to ensure sync
-        const playPromises = [
-          videoRef.current.play().then(() => {
-            console.log(`Main video playing from ${videoRef.current?.currentTime}s`);
-          }),
-          processingVideo.play().then(() => {
-            console.log(`Processing video playing from ${processingVideo.currentTime}s`);
-          })
-        ];
-
-        Promise.all(playPromises)
-          .then(() => {
-            // Use stable interval-based rendering to avoid MediaRecorder issues
-            const renderLoop = () => {
-              // Check if video has ended or if there's an error
-              if (processingVideo.ended || processingVideo.error) {
-                console.log('Video ended or error occurred, stopping recording');
-                if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                  mediaRecorder.stop();
-                }
-                return;
-              }
-              
-              // Check if video is still playing
-              if (processingVideo.paused && !processingVideo.ended) {
-                console.log('Video paused unexpectedly, attempting to resume');
-                processingVideo.play().catch(console.error);
-              }
-
-              renderFrame();
-              
-              // Use stable 30 FPS interval that works well with MediaRecorder
-              setTimeout(renderLoop, 1000 / 30); // 30 FPS is stable for recording
-            };
-
-            // Start the render loop
-            renderLoop();
-
-            // Keep videos in sync with better error handling
-            const syncInterval = setInterval(() => {
-              if (processingVideo.ended || videoRef.current?.ended) {
-                clearInterval(syncInterval);
-                return;
-              }
-              
-              // Check if videos are still playing and in sync
-              if (videoRef.current && !videoRef.current.paused && !processingVideo.paused) {
-                const timeDiff = Math.abs(processingVideo.currentTime - videoRef.current.currentTime);
-                if (timeDiff > 0.2) { // Allow slightly more tolerance
-                  console.log(`Syncing videos: processing=${processingVideo.currentTime.toFixed(2)}, main=${videoRef.current.currentTime.toFixed(2)}`);
-                  processingVideo.currentTime = videoRef.current.currentTime;
-                }
-              }
-            }, 200); // Less frequent sync to reduce overhead
-          })
-          .catch((error) => {
-            console.error("Error playing videos:", error);
-            cleanup();
-          });
-      }
-    };
-
-    // Function to clean up resources on error
-    const cleanup = () => {
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        stream.getTracks().forEach(track => track.stop());
         mediaRecorder.stop();
-      } else {
-        // If mediaRecorder wasn't started, do manual cleanup
-        document.body.removeChild(processingVideo);
-
-        // Restore the original video state
-        if (videoRef.current) {
-          videoRef.current.pause();
-          videoRef.current.currentTime = originalCurrentTime;
-          videoRef.current.volume = originalVolume;
-          videoRef.current.muted = originalMuted;
-          videoRef.current.style.cssText = originalStyle;
-        }
-
-        setStatus("ready");
-        setProgress(100);
-      }
-    };
-
-    // Pre-load fonts to ensure they're available for video rendering before starting
-    if (typeof document !== 'undefined') {
-      // Add a tiny span with the font to ensure it's loaded
-      const fontPreloader = document.createElement('span');
-      fontPreloader.style.fontFamily = subtitleStyle.fontFamily;
-      fontPreloader.style.fontSize = '0px';
-      fontPreloader.style.visibility = 'hidden';
-      fontPreloader.textContent = 'Font preloader';
-      document.body.appendChild(fontPreloader);
+      };
       
-      // Wait for the font to load, then clean it up
-      setTimeout(() => {
-        if (document.body.contains(fontPreloader)) {
-          document.body.removeChild(fontPreloader);
+      // Start the render loop
+      rvfcHandle = processingVideo.requestVideoFrameCallback(paintFrame);
+
+      // ---- Remove old timer-based renderLoop ----
+      /*const renderLoop = () => {
+        const currentTime = processingVideo.currentTime;
+        
+        if (processingVideo.ended || processingVideo.paused) {
+          console.log('Video ended, stopping recording');
+          mediaRecorder.stop();
+          return;
         }
-      }, 100);
+
+        // Always render frame on each timer tick for consistent results
+        renderFrame(currentTime);
+        
+        // Update progress
+        if (processingVideo.duration > 0) {
+          const progress = (currentTime / processingVideo.duration) * 100;
+          setProgress(Math.min(progress, 95)); // Leave 5% for final processing
+        }
+        
+        // Fixed 30 FPS timing with setTimeout is more stable than requestAnimationFrame
+        */
+
+    } catch (error) {
+      console.error("Error downloading video:", error);
+      setStatus("ready");
+      setProgress(0);
+      alert(`Failed to generate video: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
-    // Wait for the processing video to load before starting
-    processingVideo.onloadedmetadata = startRecording;
-    processingVideo.onerror = cleanup;
   };
 
   return { handleDownloadVideo };
 }
+
