@@ -51,6 +51,7 @@ export default function Home() {
   const [showApp, setShowApp] = useState(true); // Skip landing page and go straight to app
   const [mode, setMode] = useState<"word" | "phrase">("word");
   const [ratio, setRatio] = useState<"16:9" | "9:16">("16:9");
+  const [zoomPortrait, setZoomPortrait] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const {
@@ -73,6 +74,9 @@ export default function Home() {
     setProgress,
     mode,
     ratio,
+    videoFit: ratio === "9:16" 
+      ? (zoomPortrait ? "cover" : "contain") 
+      : "cover", // Portrait: zoom determines fit, landscape always crops
   });
 
   // Function to handle video reset and upload another
@@ -186,7 +190,15 @@ export default function Home() {
                     mode={mode}
                     onModeChange={setMode}
                     ratio={ratio}
-                    onRatioChange={setRatio}
+                    onRatioChange={(newRatio) => {
+                      setRatio(newRatio);
+                      // Reset zoom when switching to landscape
+                      if (newRatio === "16:9") {
+                        setZoomPortrait(false);
+                      }
+                    }}
+                    zoomPortrait={zoomPortrait}
+                    onZoomPortraitChange={setZoomPortrait}
                   />
 
                   {result && (

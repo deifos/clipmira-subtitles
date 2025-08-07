@@ -21,6 +21,7 @@ interface UseVideoDownloadProps {
   setProgress: (progress: number) => void;
   mode: "word" | "phrase";
   ratio: "16:9" | "9:16";
+  videoFit: "cover" | "contain" | "fill";
 }
 
 export function useVideoDownloadFFmpeg({
@@ -31,6 +32,7 @@ export function useVideoDownloadFFmpeg({
   setProgress,
   mode,
   ratio,
+  videoFit,
 }: UseVideoDownloadProps) {
   const handleDownloadVideo = async () => {
     if (!videoRef.current || !result) {
@@ -125,13 +127,52 @@ export function useVideoDownloadFFmpeg({
         console.log('Simple copy test successful');
         
         // Now try with subtitles
-        const drawtextFilters = createDrawtextFilters(enabledChunks, subtitleStyle, ratio);
+        const drawtextFilters = createDrawtextFilters(enabledChunks, subtitleStyle, ratio, videoFit);
         console.log('Generated drawtext filters:', drawtextFilters.length);
         console.log('First filter example:', drawtextFilters[0]);
         
+        // Add video scaling based on ratio and fit mode
+        let videoFilters = [];
+        
+        if (ratio === "9:16") {
+          // Portrait mode - scale video to fit 720x1280
+          const targetWidth = 720;
+          const targetHeight = 1280;
+          
+          if (videoFit === "contain") {
+            // Fit video within bounds, add black bars if needed
+            videoFilters.push(`scale=w=${targetWidth}:h=${targetHeight}:force_original_aspect_ratio=decrease`);
+            videoFilters.push(`pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`);
+          } else if (videoFit === "cover") {
+            // Crop video to fill bounds
+            videoFilters.push(`scale=w=${targetWidth}:h=${targetHeight}:force_original_aspect_ratio=increase`);
+            videoFilters.push(`crop=${targetWidth}:${targetHeight}`);
+          } else if (videoFit === "fill") {
+            // Stretch video to exact bounds
+            videoFilters.push(`scale=${targetWidth}:${targetHeight}`);
+          }
+        } else {
+          // Landscape mode - scale video to fit 1280x720
+          const targetWidth = 1280;
+          const targetHeight = 720;
+          
+          if (videoFit === "contain") {
+            videoFilters.push(`scale=w=${targetWidth}:h=${targetHeight}:force_original_aspect_ratio=decrease`);
+            videoFilters.push(`pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black`);
+          } else if (videoFit === "cover") {
+            videoFilters.push(`scale=w=${targetWidth}:h=${targetHeight}:force_original_aspect_ratio=increase`);
+            videoFilters.push(`crop=${targetWidth}:${targetHeight}`);
+          } else if (videoFit === "fill") {
+            videoFilters.push(`scale=${targetWidth}:${targetHeight}`);
+          }
+        }
+        
+        // Combine video scaling filters with subtitle filters
+        const allFilters = [...videoFilters, ...drawtextFilters];
+        
         const ffmpegCommand = [
           '-i', 'input.mp4',
-          '-vf', drawtextFilters.join(','),
+          '-vf', allFilters.join(','),
           '-c:a', 'copy', // Copy audio without re-encoding
           '-y', // Overwrite output file
           'output.mp4'
@@ -255,7 +296,7 @@ function formatSRTTime(seconds: number): string {
 // addWordHighlighting function removed - not supported by FFmpeg drawtext
 
 // Create drawtext filters for each subtitle chunk
-function createDrawtextFilters(chunks: any[], subtitleStyle: SubtitleStyle, ratio: "16:9" | "9:16"): string[] {
+function createDrawtextFilters(chunks: any[], subtitleStyle: SubtitleStyle, ratio: "16:9" | "9:16", videoFit: "cover" | "contain" | "fill"): string[] {
   const isVertical = ratio === "9:16";
   const filters: string[] = [];
   

@@ -19,6 +19,7 @@ interface SubtitleVideoProps {
   subtitleStyle: SubtitleStyle;
   mode: 'word' | 'phrase';
   ratio: '16:9' | '9:16';
+  zoomPortrait?: boolean;
 }
 
 export const SubtitleVideo: React.FC<SubtitleVideoProps> = ({
@@ -27,6 +28,7 @@ export const SubtitleVideo: React.FC<SubtitleVideoProps> = ({
   subtitleStyle,
   mode,
   ratio,
+  zoomPortrait = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -47,7 +49,10 @@ export const SubtitleVideo: React.FC<SubtitleVideoProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            objectFit: ratio === "9:16" 
+              ? (zoomPortrait ? "cover" : "contain")
+              : "cover",
+            backgroundColor: ratio === "9:16" && !zoomPortrait ? '#000000' : 'transparent',
           }}
         />
       ) : (

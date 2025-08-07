@@ -4,8 +4,9 @@ import { useCallback, useState, forwardRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { VideoCaption } from "./video-caption";
 import { SubtitleStyle } from "./subtitle-styling";
-import { UploadIcon } from "lucide-react";
+import { UploadIcon, ZoomIn, ZoomOut } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "./button";
 
 interface VideoUploadProps {
   onVideoSelect: (file: File) => void;
@@ -25,6 +26,8 @@ interface VideoUploadProps {
   onModeChange: (mode: "word" | "phrase") => void;
   ratio: "16:9" | "9:16";
   onRatioChange: (ratio: "16:9" | "9:16") => void;
+  zoomPortrait: boolean;
+  onZoomPortraitChange: (zoom: boolean) => void;
 }
 
 export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
@@ -40,6 +43,8 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       onModeChange,
       ratio,
       onRatioChange,
+      zoomPortrait,
+      onZoomPortraitChange,
     },
     ref
   ) => {
@@ -213,18 +218,40 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
                       <TabsTrigger value="9:16">Portrait (9:16)</TabsTrigger>
                     </TabsList>
                   </Tabs>
+                  {ratio === "9:16" && (
+                    <div className="flex justify-center">
+                      <Button
+                        variant={zoomPortrait ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => onZoomPortraitChange(!zoomPortrait)}
+                        className="flex items-center gap-2"
+                      >
+                        {zoomPortrait ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+                        {zoomPortrait ? "Fit with Bars" : "Crop to Fill"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
-            <div className="relative">
+            <div className={cn(
+              "relative mx-auto flex justify-center",
+              ratio === "16:9" ? "w-full" : "w-auto"
+            )}>
               <video
                 ref={ref}
                 src={videoSrc}
                 controls
                 className={cn(
-                  "max-h-[500px] object-contain",
-                  ratio === "16:9" ? "w-full" : "w-auto h-full"
+                  ratio === "16:9" 
+                    ? "object-cover w-full max-w-4xl max-h-[500px]" 
+                    : ratio === "9:16" && zoomPortrait
+                      ? "object-cover h-[500px] max-h-[500px]"
+                      : "object-contain h-[500px] max-h-[500px]"
                 )}
+                style={{
+                  aspectRatio: ratio === "16:9" ? "16/9" : "9/16"
+                }}
                 onTimeUpdate={handleTimeUpdate}
               />
               {isSkipping && (

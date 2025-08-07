@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const { videoSrc, transcriptData, subtitleStyle, mode, ratio } = body;
+    const { videoSrc, transcriptData, subtitleStyle, mode, ratio, zoomPortrait } = body;
 
     console.log('Request body:', { videoSrc, transcriptData: !!transcriptData, subtitleStyle: !!subtitleStyle, mode, ratio });
 
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
         subtitleStyle,
         mode,
         ratio,
+        zoomPortrait,
       },
     });
 
@@ -107,6 +108,7 @@ export async function POST(request: NextRequest) {
         subtitleStyle,
         mode,
         ratio,
+        zoomPortrait,
       },
       onProgress: (progress) => {
         console.log(`Rendering progress: ${Math.round(progress * 100)}%`);
