@@ -235,7 +235,7 @@ export function VideoCaption({
       }}
     >
       <div
-        className="inline-block px-3 py-2 rounded-md"
+        className="inline-block px-3 py-2"
         style={{
           // Only set backgroundColor if we're not using a gradient
           ...(!(style.color === "#CCCCCC" || style.color === "#C0C0C0") && {

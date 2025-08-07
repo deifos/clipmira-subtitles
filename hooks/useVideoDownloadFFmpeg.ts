@@ -306,18 +306,17 @@ function createDrawtextFilters(chunks: any[], subtitleStyle: SubtitleStyle, rati
       filter += `:shadowcolor=000000@0.6`; // Match CSS: rgba(0,0,0,0.6)
     }
     
-    // Add background box if specified
+    // Add rectangular background (closest we can get to rounded)
     if (subtitleStyle.backgroundColor && subtitleStyle.backgroundColor !== 'transparent') {
       const bgColor = subtitleStyle.backgroundColor.replace('#', '');
-      // Match CSS padding: px-3 (0.75rem = 12px) and py-2 (0.5rem = 8px)
-      const paddingH = Math.max(12, fontSize * 0.3); // Minimum 12px like px-3
-      const paddingV = Math.max(8, fontSize * 0.2);  // Minimum 8px like py-2
+      const paddingH = Math.max(12, fontSize * 0.3); // px-3 = 12px
+      const paddingV = Math.max(8, fontSize * 0.2);  // py-2 = 8px
       
-      filter += `:box=1:boxcolor=${bgColor}`; // Full opacity solid background
+      filter += `:box=1:boxcolor=${bgColor}`; // Solid background
       filter += `:boxborderw=${paddingH}`; // Horizontal padding
       
-      // Note: FFmpeg drawtext doesn't support border-radius: 0.375rem (6px)
-      // The background will be rectangular instead of rounded-md
+      // FFmpeg limitation: No border-radius support in drawtext
+      // Background will be rectangular instead of rounded (0.375rem/6px radius)
     }
     
     // Positioning and timing
