@@ -6,8 +6,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 
@@ -155,20 +153,6 @@ export function SubtitleStyling({
     });
   };
 
-  // Add black text on yellow background preset with normal font size
-  const applyBlackOnYellowStyle = () => {
-    onChange({
-      ...style,
-      fontFamily: "Arial, sans-serif",
-      fontSize: 20, // Normal font size
-      fontWeight: "bold",
-      color: "#000000", // Black text
-      backgroundColor: "#FFFF00", // Yellow background
-      borderWidth: 0,
-      borderColor: "#000000",
-      dropShadowIntensity: 0.3,
-    });
-  };
 
   // Enhanced subtitle preset for professional look
   const applySubtitleStyle = () => {

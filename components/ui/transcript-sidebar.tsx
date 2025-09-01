@@ -2,7 +2,6 @@ import { useMemo, useState, useRef, useEffect } from "react";
 import { formatTime, transcriptToSrt, transcriptToVtt, processTranscriptChunks } from "@/lib/utils";
 import { Button } from "./button";
 import { Edit, EyeOff, Eye } from "lucide-react";
-import { Alert, AlertDescription } from "./alert";
 
 interface TranscriptChunk {
   text: string;
@@ -52,9 +51,6 @@ export function TranscriptSidebar({
         const container = transcriptContainerRef.current;
         const activeElement = currentActiveElement;
         
-        // Get the actual scrollable area bounds
-        const containerRect = container.getBoundingClientRect();
-        const elementRect = activeElement.getBoundingClientRect();
         
         // Use scrollTop and clientHeight to determine the actual visible scroll area
         const scrollTop = container.scrollTop;
@@ -69,54 +65,17 @@ export function TranscriptSidebar({
         const isElementAboveViewport = elementOffsetTop < scrollTop;
         const isElementBelowViewport = elementOffsetBottom > scrollBottom;
         
-        console.log('Scroll debug:', {
-          currentTime,
-          hasActiveElement: !!activeElement,
-          containerScrollTop: scrollTop,
-          containerClientHeight: clientHeight,
-          containerScrollHeight: container.scrollHeight,
-          scrollBottom,
-          elementOffsetTop,
-          elementOffsetBottom,
-          containerRectHeight: containerRect.height,
-          elementTop: elementRect.top,
-          elementBottom: elementRect.bottom,
-          isElementAboveViewport,
-          isElementBelowViewport,
-          needsScroll: isElementAboveViewport || isElementBelowViewport,
-          containerClassName: container.className,
-          containerTagName: container.tagName,
-          containerComputedStyle: {
-            height: window.getComputedStyle(container).height,
-            maxHeight: window.getComputedStyle(container).maxHeight,
-            overflowY: window.getComputedStyle(container).overflowY
-          }
-        });
         
         if (isElementAboveViewport || isElementBelowViewport) {
           // Calculate the scroll position to center the element in the container
           const newScrollTop = elementOffsetTop - clientHeight / 2 + activeElement.offsetHeight / 2;
-          
-          console.log('Scrolling to:', {
-            elementOffsetTop,
-            containerClientHeight: clientHeight,
-            calculatedScrollTop: newScrollTop,
-            finalScrollTop: Math.max(0, newScrollTop)
-          });
           
           // Smooth scroll within the container only
           container.scrollTo({
             top: Math.max(0, newScrollTop),
             behavior: "smooth"
           });
-        } else {
-          console.log('Element is already visible, no scroll needed');
         }
-      } else {
-        console.log('Missing refs:', {
-          hasCurrentActiveElement: !!currentActiveElement,
-          hasContainerRef: !!transcriptContainerRef.current
-        });
       }
     }, 100); // Increased delay to ensure DOM updates
 
