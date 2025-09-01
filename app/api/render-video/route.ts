@@ -5,11 +5,21 @@ import path from 'path';
 import { mkdir, writeFile, unlink } from 'fs/promises';
 import { existsSync } from 'fs';
 
+let bundleLocationCache: string | null = null;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const { videoSrc, transcriptData, subtitleStyle, mode, ratio, zoomPortrait } = body;
+    const { videoSrc, transcriptData, subtitleStyle, mode, ratio, zoomPortrait, quality } = body as {
+      videoSrc: string;
+      transcriptData: any;
+      subtitleStyle: any;
+      mode: 'word' | 'phrase';
+      ratio: '16:9' | '9:16';
+      zoomPortrait?: boolean;
+      quality?: 'low' | 'medium' | 'high';
+    };
 
     console.log('Request body:', { videoSrc, transcriptData: !!transcriptData, subtitleStyle: !!subtitleStyle, mode, ratio });
 
@@ -37,22 +47,26 @@ export async function POST(request: NextRequest) {
       console.log('Saved temporary video file:', tempVideoPath);
     }
 
-    // Bundle the Remotion project
-    console.log('Bundling Remotion project...');
-    const bundleLocation = await bundle({
-      entryPoint: path.join(process.cwd(), 'remotion/Root.tsx'),
-      webpackOverride: (config) => {
-        // Add path alias resolution
-        config.resolve = {
-          ...config.resolve,
-          alias: {
-            ...config.resolve?.alias,
-            '@': path.resolve(process.cwd()),
-          },
-        };
-        return config;
-      },
-    });
+    // Bundle the Remotion project (cache across requests to avoid rebundling)
+    if (!bundleLocationCache) {
+      console.log('Bundling Remotion project (cold start)...');
+      bundleLocationCache = await bundle({
+        entryPoint: path.join(process.cwd(), 'remotion/Root.tsx'),
+        webpackOverride: (config) => {
+          config.resolve = {
+            ...config.resolve,
+            alias: {
+              ...config.resolve?.alias,
+              '@': path.resolve(process.cwd()),
+            },
+          };
+          return config;
+        },
+      });
+    } else {
+      console.log('Using cached Remotion bundle');
+    }
+    const bundleLocation = bundleLocationCache;
 
     // Get composition
     console.log('Getting composition...');
@@ -74,7 +88,16 @@ export async function POST(request: NextRequest) {
     // Calculate duration based on video or transcript
     const lastChunk = transcriptData.chunks[transcriptData.chunks.length - 1];
     const videoDuration = lastChunk ? lastChunk.timestamp[1] : 30; // fallback to 30s
-    const durationInFrames = Math.ceil(videoDuration * 30); // 30 fps
+    // Quality presets
+    const selectedQuality = quality || 'medium';
+    const fps = selectedQuality === 'low' ? 24 : 30;
+    const width = ratio === '9:16'
+      ? (selectedQuality === 'high' ? 1080 : selectedQuality === 'medium' ? 720 : 540)
+      : (selectedQuality === 'high' ? 1920 : selectedQuality === 'medium' ? 1280 : 960);
+    const height = ratio === '9:16'
+      ? (selectedQuality === 'high' ? 1920 : selectedQuality === 'medium' ? 1280 : 960)
+      : (selectedQuality === 'high' ? 1080 : selectedQuality === 'medium' ? 720 : 540);
+    const durationInFrames = Math.ceil(videoDuration * fps);
 
     // Generate output filename
     const timestamp = Date.now();
@@ -84,9 +107,9 @@ export async function POST(request: NextRequest) {
     console.log('Rendering video...');
     console.log('Render config:', {
       durationInFrames,
-      fps: 30,
-      width: ratio === '9:16' ? 720 : 1280,
-      height: ratio === '9:16' ? 1280 : 720,
+      fps,
+      width,
+      height,
       codec: 'h264',
       outputLocation: outputPath,
     });
@@ -95,13 +118,16 @@ export async function POST(request: NextRequest) {
       composition: {
         ...composition,
         durationInFrames,
-        fps: 30, // Explicitly set fps
-        width: ratio === '9:16' ? 720 : 1280,
-        height: ratio === '9:16' ? 1280 : 720,
+        fps,
+        width,
+        height,
       },
       serveUrl: bundleLocation,
       codec: 'h264',
       outputLocation: outputPath,
+      crf: selectedQuality === 'high' ? 20 : selectedQuality === 'medium' ? 24 : 28,
+      x264Preset: 'veryfast',
+      concurrency: 2,
       inputProps: {
         videoSrc: actualVideoSrc,
         transcriptData,

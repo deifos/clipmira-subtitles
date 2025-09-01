@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 import { useTranscription, STATUS_MESSAGES } from "@/hooks/useTranscription";
-import { useVideoDownloadFFmpeg } from "@/hooks/useVideoDownloadFFmpeg";
+import { useVideoDownloadMediaBunnyV2 } from "@/hooks/useVideoDownloadMediaBunnyV2";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Default subtitle style
@@ -34,12 +34,7 @@ const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   backgroundColor: "transparent", // No background
   borderWidth: 2,
   borderColor: "#000000", // Black border
-  animated: true, // Default to animated
   dropShadowIntensity: 0.9, // Default shadow intensity
-  wordHighlightEnabled: true,
-  wordHighlightColor: "#FFFF00",
-  wordHighlightAnimation: "glow",
-  wordHighlightIntensity: 0.7,
 };
 
 export default function Home() {
@@ -66,17 +61,14 @@ export default function Home() {
     resetTranscription,
   } = useTranscription();
 
-  const { handleDownloadVideo } = useVideoDownloadFFmpeg({
-    videoRef,
-    result,
+  const { downloadVideo, isProcessing: isDownloadProcessing, progress: downloadProgress, status: downloadStatus } = useVideoDownloadMediaBunnyV2({
+    video: videoRef.current,
+    transcriptChunks: result?.chunks || [],
     subtitleStyle,
-    setStatus,
-    setProgress,
     mode,
-    ratio,
-    videoFit: ratio === "9:16" 
-      ? (zoomPortrait ? "cover" : "contain") 
-      : "cover", // Portrait: zoom determines fit, landscape always crops
+    format: 'mp4',
+    quality: 'high',
+    fps: 30,
   });
 
   // Function to handle video reset and upload another
@@ -202,15 +194,30 @@ export default function Home() {
                   />
 
                   {result && (
-                    <div className="mt-4 flex justify-center">
+                    <div className="mt-4 flex flex-col items-center gap-2">
                       <Button
-                        onClick={handleDownloadVideo}
+                        onClick={downloadVideo}
                         className="flex items-center gap-2"
-                        disabled={isProcessing}
+                        disabled={isDownloadProcessing}
                       >
                         <Download className="w-4 h-4" />
-                        Download Video with Subtitles
+                        {isDownloadProcessing ? 'Processing...' : 'Download Video with Subtitles'}
                       </Button>
+                      
+                      {isDownloadProcessing && (
+                        <div className="w-full max-w-md">
+                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
+                            <span>{downloadStatus}</span>
+                            <span>{Math.round(downloadProgress)}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                              style={{ width: `${downloadProgress}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
