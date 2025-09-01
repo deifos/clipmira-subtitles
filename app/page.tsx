@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback, useMemo } from "react";
 import { VideoUpload } from "@/components/ui/video-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -12,6 +12,8 @@ import {
   Globe,
   Zap,
   CheckCircle,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { TranscriptSidebar } from "@/components/ui/transcript-sidebar";
 import {
@@ -24,6 +26,7 @@ import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 import { useTranscription, STATUS_MESSAGES } from "@/hooks/useTranscription";
 import { useVideoDownloadMediaBunny } from "@/hooks/useVideoDownloadMediaBunny";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Default subtitle style
 const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
@@ -71,8 +74,8 @@ export default function Home() {
     fps: 30,
   });
 
-  // Function to handle video reset and upload another
-  const handleResetVideo = () => {
+  // Memoized handlers for better performance
+  const handleResetVideo = useCallback(() => {
     // Reset transcription state
     resetTranscription();
 
@@ -91,7 +94,27 @@ export default function Home() {
       // Force the browser to release any object URLs
       videoRef.current.load();
     }
-  };
+  }, [resetTranscription]);
+
+  const handleTimeUpdate = useCallback((time: number) => {
+    setCurrentTime(time);
+  }, []);
+
+  const handleModeChange = useCallback((newMode: "word" | "phrase") => {
+    setMode(newMode);
+  }, []);
+
+  const handleRatioChange = useCallback((newRatio: "16:9" | "9:16") => {
+    setRatio(newRatio);
+    // Reset zoom when switching to landscape
+    if (newRatio === "16:9") {
+      setZoomPortrait(false);
+    }
+  }, []);
+
+  const handleZoomPortraitChange = useCallback((zoom: boolean) => {
+    setZoomPortrait(zoom);
+  }, []);
 
   // Function to show the app and hide the landing page content
   const handleTryNow = () => {
@@ -118,23 +141,71 @@ export default function Home() {
         {/* App Section */}
         <section className="flex-1 flex items-center justify-center w-full py-8">
           <div className="mx-auto px-4 md:px-6 w-full">
-            <div className="w-full mx-auto space-y-6 p-6 md:p-8 rounded-xl border border-border/50">
-              <div className="flex justify-between items-center">
-                <div className="space-y-2">
+            <div className="w-full mx-auto space-y-4 p-6 md:p-8 rounded-xl border border-border/50">
+              {/* Single Row - 3 Columns Layout */}
+              <div className="grid grid-cols-3 items-center gap-4">
+                {/* Column 1: Upload Text */}
+                <div className="justify-self-start">
                   <p className="text-muted-foreground">
                     Upload a video (MP4 or WebM) to generate subtitles
                   </p>
                 </div>
 
-                {result && (
-                  <Button
-                    onClick={handleResetVideo}
-                    className="flex items-center gap-2 px-4 py-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload Another Video
-                  </Button>
-                )}
+                {/* Column 2: Controls (Center) */}
+                <div className="justify-self-center">
+                  {result && (
+                    <div className="flex flex-col gap-3 items-center">
+                      {/* Tab Controls */}
+                      <div className="flex flex-col gap-2 items-center">
+                        <Tabs
+                          value={mode}
+                          onValueChange={handleModeChange}
+                        >
+                          <TabsList className="grid w-[280px] sm:w-[320px] grid-cols-2">
+                            <TabsTrigger value="word">Word by Word</TabsTrigger>
+                            <TabsTrigger value="phrase">Phrases</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        
+                        <Tabs
+                          value={ratio}
+                          onValueChange={handleRatioChange}
+                        >
+                          <TabsList className="grid w-[280px] sm:w-[320px] grid-cols-2">
+                            <TabsTrigger value="16:9">Landscape (16:9)</TabsTrigger>
+                            <TabsTrigger value="9:16">Portrait (9:16)</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </div>
+                      
+                      {/* Portrait Zoom Control - Below the tabs */}
+                      {ratio === "9:16" && (
+                        <Button
+                          variant={zoomPortrait ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleZoomPortraitChange(!zoomPortrait)}
+                          className="flex items-center gap-2"
+                        >
+                          {zoomPortrait ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
+                          {zoomPortrait ? "Fit to Container" : "Crop/Zoom"}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Column 3: Upload Button */}
+                <div className="justify-self-end">
+                  {result && (
+                    <Button
+                      onClick={handleResetVideo}
+                      className="flex items-center gap-2 px-4 py-2"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Upload Another Video
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {!result && (
@@ -170,27 +241,19 @@ export default function Home() {
 
                 {/* Video Column */}
                 <div className="flex-1 flex flex-col">
+                  {/* Video Upload Component */}
                   <VideoUpload
                     key={uploadKey}
                     className="w-full"
                     onVideoSelect={handleVideoSelect}
                     ref={videoRef}
-                    onTimeUpdate={(time) => setCurrentTime(time)}
+                    onTimeUpdate={handleTimeUpdate}
                     transcript={result}
                     currentTime={currentTime}
                     subtitleStyle={subtitleStyle}
                     mode={mode}
-                    onModeChange={setMode}
                     ratio={ratio}
-                    onRatioChange={(newRatio) => {
-                      setRatio(newRatio);
-                      // Reset zoom when switching to landscape
-                      if (newRatio === "16:9") {
-                        setZoomPortrait(false);
-                      }
-                    }}
                     zoomPortrait={zoomPortrait}
-                    onZoomPortraitChange={setZoomPortrait}
                   />
 
                   {result && (
@@ -205,15 +268,15 @@ export default function Home() {
                       </Button>
                       
                       {isDownloadProcessing && (
-                        <div className="w-full max-w-md">
-                          <div className="flex justify-between text-sm text-muted-foreground mb-1">
+                        <div className="w-full max-w-md mt-3">
+                          <div className="flex justify-between text-sm text-muted-foreground mb-2">
                             <span>{downloadStatus}</span>
                             <span>{Math.round(downloadProgress)}%</span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-gray-200 rounded-full h-3">
                             <div 
-                              className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                              style={{ width: `${downloadProgress}%` }}
+                              className="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+                              style={{ width: `${Math.max(0, Math.min(100, downloadProgress))}%` }}
                             ></div>
                           </div>
                         </div>

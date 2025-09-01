@@ -15,23 +15,13 @@ import {
   QUALITY_LOW,
   QUALITY_VERY_HIGH
 } from 'mediabunny';
+import { SubtitleStyle } from '@/components/ui/subtitle-styling';
 
 // Types
 interface TranscriptChunk {
   text: string;
   timestamp: [number, number];
   disabled?: boolean;
-}
-
-interface SubtitleStyle {
-  fontFamily: string;
-  fontSize: number;
-  fontWeight: string;
-  color: string;
-  backgroundColor: string;
-  borderWidth: number;
-  borderColor: string;
-  dropShadowIntensity: number;
 }
 
 interface UseVideoDownloadMediaBunnyProps {
@@ -161,10 +151,10 @@ export function useVideoDownloadMediaBunny({
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
         const time = frameIndex / fps;
         
-        // Update progress
-        const progressPercent = frameIndex / totalFrames;
+        // Update progress (convert to percentage 0-100)
+        const progressPercent = (frameIndex / totalFrames) * 100;
         setProgress(progressPercent);
-        setStatus(`Rendering: ${Math.round(time)}s / ${Math.round(duration)}s (${Math.round(progressPercent * 100)}%)`);
+        setStatus(`Rendering: ${Math.round(time)}s / ${Math.round(duration)}s (${Math.round(progressPercent)}%)`);
 
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -221,7 +211,7 @@ export function useVideoDownloadMediaBunny({
       URL.revokeObjectURL(url);
 
       setStatus('Export complete!');
-      setProgress(1);
+      setProgress(100);
       console.log('Video export completed successfully');
 
     } catch (error) {
@@ -266,6 +256,7 @@ function renderSubtitle(
   
   console.log(`Preview: ${previewWidth}x${previewHeight}, Export: ${canvas.width}x${canvas.height}`);
   console.log(`Font: ${style.fontSize} -> ${finalFontSize} (scale: ${baseScale})`);
+  console.log(`Style - Border: ${style.borderWidth}px ${style.borderColor}, Shadow: ${style.dropShadowIntensity}, BG: ${style.backgroundColor}`);
 
   // Handle font family
   let fontFamily = style.fontFamily;
@@ -339,7 +330,7 @@ function renderSubtitle(
   // Draw each line of text
   lines.forEach((line, index) => {
     const lineY = startY + index * lineHeight;
-    renderTextLine(ctx, line, x, lineY, style);
+    renderTextLine(ctx, line, x, lineY, style, baseScale);
   });
 }
 
@@ -349,24 +340,26 @@ function renderTextLine(
   text: string,
   x: number,
   y: number,
-  style: SubtitleStyle
+  style: SubtitleStyle,
+  baseScale: number = 1
 ) {
   const upperText = text.toUpperCase();
 
-  // Draw shadow
+  // Draw shadow with proper scaling
   if (style.dropShadowIntensity > 0) {
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    const shadowOffset = style.dropShadowIntensity * 2;
+    const shadowOffset = style.dropShadowIntensity * 2 * baseScale;
     ctx.fillText(upperText, x + shadowOffset, y + shadowOffset);
     ctx.restore();
   }
 
-  // Draw border/stroke
+  // Draw border/stroke with proper scaling
   if (style.borderWidth > 0) {
     ctx.strokeStyle = style.borderColor;
-    ctx.lineWidth = style.borderWidth;
+    ctx.lineWidth = style.borderWidth * baseScale;
     ctx.strokeText(upperText, x, y);
+    console.log(`Rendering border: ${style.borderWidth * baseScale}px ${style.borderColor} for "${upperText}"`);
   }
 
   // Draw main text with proper color handling
@@ -375,9 +368,10 @@ function renderTextLine(
   // Handle metallic gradient for silver colors
   if (style.color === "#CCCCCC" || style.color === "#C0C0C0") {
     const textWidth = ctx.measureText(upperText).width;
+    const gradientHeight = 20 * baseScale; // Scale gradient height
     const gradient = ctx.createLinearGradient(
-      x - textWidth / 2, y - 20,
-      x + textWidth / 2, y + 20
+      x - textWidth / 2, y - gradientHeight,
+      x + textWidth / 2, y + gradientHeight
     );
     gradient.addColorStop(0, "#FFFFFF");
     gradient.addColorStop(0.5, "#CCCCCC");

@@ -172,7 +172,7 @@ export function VideoCaption({
   return (
     <div
       className={cn(
-        "absolute left-1/2 -translate-x-1/2 text-center",
+        "absolute left-1/2 -translate-x-1/2 text-center pointer-events-none",
         ratio === "16:9"
           ? "bottom-[16%] w-[90%]" // Landscape mode
           : "bottom-[8%] w-[85%]" // Portrait mode

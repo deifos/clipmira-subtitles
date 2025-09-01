@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback, useState, forwardRef, useEffect } from "react";
+import { useCallback, useState, forwardRef, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import { VideoCaption } from "./video-caption";
 import { SubtitleStyle } from "./subtitle-styling";
-import { UploadIcon, ZoomIn, ZoomOut } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "./button";
+import { UploadIcon } from "lucide-react";
 
 interface VideoUploadProps {
   onVideoSelect: (file: File) => void;
@@ -23,14 +21,11 @@ interface VideoUploadProps {
   currentTime?: number;
   subtitleStyle: SubtitleStyle;
   mode: "word" | "phrase";
-  onModeChange: (mode: "word" | "phrase") => void;
   ratio: "16:9" | "9:16";
-  onRatioChange: (ratio: "16:9" | "9:16") => void;
   zoomPortrait: boolean;
-  onZoomPortraitChange: (zoom: boolean) => void;
 }
 
-export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
+const VideoUploadComponent = forwardRef<HTMLVideoElement, VideoUploadProps>(
   (
     {
       onVideoSelect,
@@ -40,11 +35,8 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       currentTime = 0,
       subtitleStyle,
       mode,
-      onModeChange,
       ratio,
-      onRatioChange,
       zoomPortrait,
-      onZoomPortraitChange,
     },
     ref
   ) => {
@@ -197,43 +189,6 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
       >
         {videoSrc ? (
           <div className="relative flex flex-col items-center justify-center w-full h-full">
-            {transcript && (
-              <>
-                <div className="flex flex-col gap-2 mb-4">
-                  <Tabs
-                    defaultValue={mode}
-                    onValueChange={(v) => onModeChange(v as "word" | "phrase")}
-                  >
-                    <TabsList className="grid w-[400px] grid-cols-2">
-                      <TabsTrigger value="word">Word by Word</TabsTrigger>
-                      <TabsTrigger value="phrase">Phrases</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <Tabs
-                    defaultValue={ratio}
-                    onValueChange={(v) => onRatioChange(v as "16:9" | "9:16")}
-                  >
-                    <TabsList className="grid w-[400px] grid-cols-2">
-                      <TabsTrigger value="16:9">Landscape (16:9)</TabsTrigger>
-                      <TabsTrigger value="9:16">Portrait (9:16)</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  {ratio === "9:16" && (
-                    <div className="flex justify-center">
-                      <Button
-                        variant={zoomPortrait ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => onZoomPortraitChange(!zoomPortrait)}
-                        className="flex items-center gap-2"
-                      >
-                        {zoomPortrait ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
-                        {zoomPortrait ? "Fit with Bars" : "Crop to Fill"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
             <div className={cn(
               "relative mx-auto flex justify-center",
               ratio === "16:9" ? "w-full" : "w-auto"
@@ -296,4 +251,7 @@ export const VideoUpload = forwardRef<HTMLVideoElement, VideoUploadProps>(
   }
 );
 
-VideoUpload.displayName = "VideoUpload";
+VideoUploadComponent.displayName = "VideoUpload";
+
+// Memoized export for better performance
+export const VideoUpload = memo(VideoUploadComponent);
