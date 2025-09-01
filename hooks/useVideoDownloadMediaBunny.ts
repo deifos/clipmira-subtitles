@@ -1,17 +1,22 @@
 import { useState, useCallback } from 'react';
-import { 
-  Input, 
-  Output, 
-  CanvasSource, 
+import {
+  Input,
+  Output,
+  CanvasSource,
   AudioBufferSource,
   Mp4OutputFormat,
+  WebMOutputFormat,
   BufferTarget,
   BlobSource,
+  VideoSampleSink,
   ALL_FORMATS,
   QUALITY_HIGH,
-  QUALITY_MEDIUM
+  QUALITY_MEDIUM,
+  QUALITY_LOW,
+  QUALITY_VERY_HIGH
 } from 'mediabunny';
-// Types imported from components
+
+// Types
 interface TranscriptChunk {
   text: string;
   timestamp: [number, number];
@@ -34,20 +39,34 @@ interface UseVideoDownloadMediaBunnyProps {
   transcriptChunks: TranscriptChunk[];
   subtitleStyle: SubtitleStyle;
   mode: 'word' | 'phrase';
+  format?: 'mp4' | 'webm';
+  quality?: 'low' | 'medium' | 'high' | 'very_high';
+  fps?: number;
 }
+
+// Quality mapping
+const qualityMap = {
+  low: QUALITY_LOW,
+  medium: QUALITY_MEDIUM,
+  high: QUALITY_HIGH,
+  very_high: QUALITY_VERY_HIGH,
+} as const;
 
 export function useVideoDownloadMediaBunny({
   video,
   transcriptChunks,
   subtitleStyle,
-  mode
+  mode,
+  format = 'mp4',
+  quality = 'high',
+  fps = 30
 }: UseVideoDownloadMediaBunnyProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>('');
 
   const downloadVideo = useCallback(async () => {
-    if (!video || !video.src || transcriptChunks.length === 0) {
+    if (!video?.src || transcriptChunks.length === 0) {
       console.error('Missing video or transcript data');
       return;
     }
@@ -57,17 +76,19 @@ export function useVideoDownloadMediaBunny({
     setStatus('Initializing MediaBunny...');
 
     try {
-      // Create canvas for subtitle rendering
+      // Create canvas matching video dimensions
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
-      
-      // Set canvas size to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        throw new Error('Failed to create canvas context');
+      }
+
       console.log(`Canvas size: ${canvas.width}x${canvas.height}`);
 
-      // Setup MediaBunny input for original video
+      // Setup MediaBunny input
       setStatus('Reading original video...');
       const videoBlob = await fetch(video.src).then(r => r.blob());
       const input = new Input({
@@ -79,147 +100,138 @@ export function useVideoDownloadMediaBunny({
       const duration = await input.computeDuration();
       const originalVideoTrack = await input.getPrimaryVideoTrack();
       const originalAudioTrack = await input.getPrimaryAudioTrack();
-      
-      console.log(`Video duration: ${duration}s`);
-      if (originalVideoTrack) {
-        console.log(`Original resolution: ${originalVideoTrack.displayWidth}x${originalVideoTrack.displayHeight}`);
-      }
 
-      // Setup MediaBunny output
-      setStatus('Setting up output...');
+      console.log(`Video duration: ${duration}s`);
+
+      // Setup output
+      const outputFormat = format === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
       const output = new Output({
-        format: new Mp4OutputFormat(),
+        format: outputFormat,
         target: new BufferTarget(),
       });
 
-      // Create canvas source for video with subtitles
+      // Add video track
       const videoSource = new CanvasSource(canvas, {
-        codec: 'avc', // H.264 codec
-        bitrate: QUALITY_HIGH,
+        codec: format === 'webm' ? 'vp9' : 'avc',
+        bitrate: qualityMap[quality],
       });
+      output.addVideoTrack(videoSource, { frameRate: fps });
 
-      output.addVideoTrack(videoSource);
-
-      // Add audio track if present
+      // Handle audio if present
+      let audioSource: AudioBufferSource | null = null;
       if (originalAudioTrack) {
-        // For now, we'll need to implement audio extraction
-        // This is a simplified version - we may need to decode and re-encode audio
         setStatus('Processing audio...');
-        
-        const audioSource = new AudioBufferSource({
-          codec: 'aac',
-          bitrate: QUALITY_MEDIUM,
-        });
-        
-        output.addAudioTrack(audioSource);
+        try {
+          const arrayBuffer = await videoBlob.arrayBuffer();
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+          
+          audioSource = new AudioBufferSource({
+            codec: format === 'webm' ? 'opus' : 'aac',
+            bitrate: qualityMap[quality],
+          });
+          output.addAudioTrack(audioSource);
+          
+          // Start output and add audio
+          await output.start();
+          await audioSource.add(audioBuffer);
+          audioSource.close();
+        } catch (error) {
+          console.warn('Audio processing failed:', error);
+          await output.start();
+        }
+      } else {
+        await output.start();
       }
 
-      // Start output
-      await output.start();
-      setStatus('Rendering video with subtitles...');
+      // Setup video sample sink for precise frame extraction
+      let videoSampleSink: VideoSampleSink | null = null;
+      if (originalVideoTrack && await originalVideoTrack.canDecode()) {
+        videoSampleSink = new VideoSampleSink(originalVideoTrack);
+      }
 
       // Filter enabled chunks
       const enabledChunks = transcriptChunks.filter(chunk => !chunk.disabled);
       console.log(`Processing ${enabledChunks.length} subtitle chunks`);
 
-      // Create a temporary video element for frame-by-frame processing
-      const processingVideo = document.createElement('video');
-      processingVideo.src = video.src;
-      processingVideo.muted = true;
-      processingVideo.preload = 'metadata';
+      const totalFrames = Math.ceil(duration * fps);
+      setStatus('Rendering video frames...');
 
-      await new Promise((resolve) => {
-        processingVideo.addEventListener('loadedmetadata', resolve, { once: true });
-      });
-
-      // Set up real-time rendering with video playback
-      setStatus('Starting video playback and recording...');
-      
-      // Play the video and capture canvas in real-time
-      processingVideo.currentTime = 0;
-      processingVideo.play();
-      
-      let lastRenderTime = 0;
-      const targetFPS = 30;
-      const frameInterval = 1000 / targetFPS;
-      
-      const renderLoop = () => {
-        const now = performance.now();
+      // Render each frame
+      for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+        const time = frameIndex / fps;
         
-        if (now - lastRenderTime >= frameInterval) {
-          const currentTime = processingVideo.currentTime;
-          const progressPercent = (currentTime / duration) * 100;
-          setProgress(progressPercent);
-          setStatus(`Recording: ${Math.round(currentTime)}s / ${Math.round(duration)}s (${Math.round(progressPercent)}%)`);
-          
-          // Clear canvas and draw current video frame
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(processingVideo, 0, 0, canvas.width, canvas.height);
-          
-          // Find and render current subtitle
-          const currentChunk = enabledChunks.find(chunk => {
-            const start = chunk.timestamp[0];
-            const end = chunk.timestamp[1];
-            return currentTime >= start && currentTime <= end;
-          });
+        // Update progress
+        const progressPercent = frameIndex / totalFrames;
+        setProgress(progressPercent);
+        setStatus(`Rendering: ${Math.round(time)}s / ${Math.round(duration)}s (${Math.round(progressPercent * 100)}%)`);
 
-          if (currentChunk) {
-            renderSubtitleOnCanvas(ctx, currentChunk, subtitleStyle, canvas, currentTime, mode, enabledChunks);
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw video frame
+        if (videoSampleSink) {
+          try {
+            const sample = await videoSampleSink.getSample(time);
+            if (sample) {
+              sample.draw(ctx, 0, 0, canvas.width, canvas.height);
+            }
+          } catch (error) {
+            console.warn(`Failed to get video sample at time ${time}:`, error);
           }
-          
-          lastRenderTime = now;
         }
-        
-        // Continue until video ends
-        if (!processingVideo.ended && !processingVideo.paused) {
-          requestAnimationFrame(renderLoop);
-        }
-      };
-      
-      // Start the render loop
-      requestAnimationFrame(renderLoop);
-      
-      // Wait for video to finish playing
-      await new Promise((resolve) => {
-        processingVideo.addEventListener('ended', resolve, { once: true });
-      });
 
-      // Finalize output
+        // Find and render current subtitle
+        const currentChunk = enabledChunks.find(chunk => {
+          const [start, end] = chunk.timestamp;
+          return time >= start && time <= end;
+        });
+
+        if (currentChunk) {
+          renderSubtitle(ctx, currentChunk, subtitleStyle, canvas, mode);
+        }
+
+        // Add frame to video source
+        await videoSource.add(time, 1 / fps);
+      }
+
+      // Finalize export
+      videoSource.close();
       setStatus('Finalizing video...');
       await output.finalize();
 
-      // Get the final video buffer
+      // Download file
       const bufferTarget = output.target as BufferTarget;
       const buffer = bufferTarget.buffer;
-      
+
       if (!buffer) {
         throw new Error('Failed to generate video buffer');
       }
-      
-      // Create download
-      const blob = new Blob([buffer], { type: 'video/mp4' });
+
+      const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
+      const blob = new Blob([buffer], { type: mimeType });
       const url = URL.createObjectURL(blob);
-      
+
       const a = document.createElement('a');
       a.href = url;
-      a.download = `video_with_subtitles_${new Date().toISOString().replace(/[:.]/g, '-')}.mp4`;
+      a.download = `video_with_subtitles_${new Date().toISOString().replace(/[:.]/g, '-')}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      
       URL.revokeObjectURL(url);
-      
-      setStatus('Download complete!');
-      console.log('Video download completed successfully');
+
+      setStatus('Export complete!');
+      setProgress(1);
+      console.log('Video export completed successfully');
 
     } catch (error) {
       console.error('MediaBunny video processing failed:', error);
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
-      setProgress(0);
+      setTimeout(() => setProgress(0), 3000);
     }
-  }, [video, transcriptChunks, subtitleStyle, mode]);
+  }, [video, transcriptChunks, subtitleStyle, mode, format, quality, fps]);
 
   return {
     downloadVideo,
@@ -229,117 +241,150 @@ export function useVideoDownloadMediaBunny({
   };
 }
 
-// Reuse our existing canvas rendering logic that works perfectly in preview
-function renderSubtitleOnCanvas(
+// Subtitle rendering function
+function renderSubtitle(
   ctx: CanvasRenderingContext2D,
   chunk: TranscriptChunk,
   style: SubtitleStyle,
   canvas: HTMLCanvasElement,
-  currentTime: number,
-  mode: 'word' | 'phrase',
-  allChunks: TranscriptChunk[]
+  mode: 'word' | 'phrase'
 ) {
-  // Get the text to display
-  let displayText = '';
-  
-  if (mode === 'word') {
-    displayText = chunk.text;
-  } else {
-    // For phrase mode, find current word for highlighting
-    displayText = chunk.text;
-  }
-
-  // Calculate font size (use our proven scaling from memories)
+  const displayText = chunk.text;
   const isVerticalVideo = canvas.height > canvas.width;
-  let baseFontSize: number;
+
+  // Calculate scale based on preview container size
+  const previewContainer = document.querySelector('.video-container') as HTMLElement | null;
+  const previewWidth = previewContainer?.clientWidth || 281;
+  const previewHeight = previewContainer?.clientHeight || 500;
   
-  if (isVerticalVideo) {
-    baseFontSize = canvas.width * 0.12; // 12% of width for vertical
-  } else {
-    baseFontSize = canvas.height * 0.1; // 10% of height for landscape
+  const scaleX = canvas.width / previewWidth;
+  const scaleY = canvas.height / previewHeight;
+  const baseScale = Math.min(scaleX, scaleY);
+  
+  // Calculate font size to match preview proportions
+  const finalFontSize = Math.round(style.fontSize * baseScale);
+  
+  console.log(`Preview: ${previewWidth}x${previewHeight}, Export: ${canvas.width}x${canvas.height}`);
+  console.log(`Font: ${style.fontSize} -> ${finalFontSize} (scale: ${baseScale})`);
+
+  // Handle font family
+  let fontFamily = style.fontFamily;
+  if (fontFamily.includes('var(')) {
+    const fallbackMatch = fontFamily.match(/,\s*(.+)$/);
+    fontFamily = fallbackMatch ? fallbackMatch[1] : 'Arial, sans-serif';
   }
-  
-  // Scale with style fontSize
-  const baseScale = Math.min(canvas.width / 800, canvas.height / 600);
-  const scaledFontSize = style.fontSize * Math.max(2, baseScale * 3);
-  const finalFontSize = Math.max(scaledFontSize, baseFontSize);
 
   // Set font properties
-  ctx.font = `${style.fontWeight} ${finalFontSize}px ${style.fontFamily}`;
+  ctx.font = `${style.fontWeight} ${finalFontSize}px ${fontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
   // Calculate positioning
-  const bottomPercent = isVerticalVideo ? 0.08 : 0.16;
-  const maxWidth = canvas.width * (isVerticalVideo ? 0.85 : 0.9);
+  const x = canvas.width / 2;
+  const baseY = canvas.height - (canvas.height * (isVerticalVideo ? 0.08 : 0.16));
   
-  // Split text into lines if needed
-  const lines = wrapText(ctx, displayText, maxWidth);
-  const lineHeight = finalFontSize * 1.2;
-  const totalTextHeight = lines.length * lineHeight;
+  // Text wrapping logic
+  const words = displayText.split(" ");
+  const maxWordsPerLine = isVerticalVideo ? 4 : 6;
+  const shouldSplitText = words.length > maxWordsPerLine;
   
-  const startY = canvas.height - (canvas.height * bottomPercent) - (totalTextHeight / 2);
-
-  // Render each line
-  lines.forEach((line, index) => {
-    const y = startY + (index * lineHeight);
+  let lines = [displayText];
+  if (shouldSplitText) {
+    const midpoint = Math.ceil(words.length / 2);
+    let splitPoint = midpoint;
     
-    // Render background if specified
-    if (style.backgroundColor && style.backgroundColor !== 'transparent') {
-      const textMetrics = ctx.measureText(line);
-      const padding = 12; // Fixed padding like preview
-      
-      ctx.fillStyle = style.backgroundColor;
-      ctx.fillRect(
-        canvas.width / 2 - textMetrics.width / 2 - padding,
-        y - finalFontSize / 2 - 8,
-        textMetrics.width + padding * 2,
-        finalFontSize + 16
-      );
+    // Find natural break points
+    for (let i = Math.max(2, midpoint - 2); i <= Math.min(words.length - 2, midpoint + 2); i++) {
+      if (/[,;:.!?]$/.test(words[i])) {
+        splitPoint = i + 1;
+        break;
+      }
     }
+    
+    lines = [
+      words.slice(0, splitPoint).join(" "),
+      words.slice(splitPoint).join(" ")
+    ];
+  }
 
-    // Render border/outline
-    if (style.borderWidth > 0 && style.borderColor) {
-      ctx.strokeStyle = style.borderColor;
-      ctx.lineWidth = style.borderWidth;
-      ctx.strokeText(line, canvas.width / 2, y);
-    }
+  const lineHeight = finalFontSize * 1.4;
+  const totalHeight = lines.length * lineHeight;
+  const startY = baseY - totalHeight / 2 + lineHeight / 2;
 
-    // Render shadow based on dropShadowIntensity
-    if (style.dropShadowIntensity > 0) {
-      ctx.save();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-      const shadowOffset = style.dropShadowIntensity * 2;
-      ctx.fillText(line, canvas.width / 2 + shadowOffset, y + shadowOffset);
-      ctx.restore();
-    }
+  // Draw background if specified
+  if (style.backgroundColor && style.backgroundColor !== "transparent") {
+    const borderRadius = 8 * baseScale;
+    const paddingX = 12 * baseScale;
+    const paddingY = 8 * baseScale;
+    
+    // Measure maximum line width
+    let maxWidth = 0;
+    lines.forEach(line => {
+      const metrics = ctx.measureText(line.toUpperCase());
+      maxWidth = Math.max(maxWidth, metrics.width);
+    });
 
-    // Render main text
-    ctx.fillStyle = style.color;
-    ctx.fillText(line, canvas.width / 2, y);
+    // Draw background perfectly centered with text
+    const bgX = x - maxWidth / 2 - paddingX;
+    const bgY = startY - lineHeight / 2 - paddingY;
+    const bgWidth = maxWidth + paddingX * 2;
+    const bgHeight = totalHeight + paddingY * 2;
+
+    ctx.fillStyle = style.backgroundColor;
+    ctx.beginPath();
+    ctx.roundRect(bgX, bgY, bgWidth, bgHeight, borderRadius);
+    ctx.fill();
+  }
+
+  // Draw each line of text
+  lines.forEach((line, index) => {
+    const lineY = startY + index * lineHeight;
+    renderTextLine(ctx, line, x, lineY, style);
   });
 }
 
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let currentLine = '';
+// Text rendering helper
+function renderTextLine(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  style: SubtitleStyle
+) {
+  const upperText = text.toUpperCase();
 
-  for (const word of words) {
-    const testLine = currentLine + (currentLine ? ' ' : '') + word;
-    const metrics = ctx.measureText(testLine);
-    
-    if (metrics.width > maxWidth && currentLine) {
-      lines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = testLine;
-    }
+  // Draw shadow
+  if (style.dropShadowIntensity > 0) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    const shadowOffset = style.dropShadowIntensity * 2;
+    ctx.fillText(upperText, x + shadowOffset, y + shadowOffset);
+    ctx.restore();
   }
-  
-  if (currentLine) {
-    lines.push(currentLine);
+
+  // Draw border/stroke
+  if (style.borderWidth > 0) {
+    ctx.strokeStyle = style.borderColor;
+    ctx.lineWidth = style.borderWidth;
+    ctx.strokeText(upperText, x, y);
   }
+
+  // Draw main text with proper color handling
+  let fillStyle = style.color;
   
-  return lines;
+  // Handle metallic gradient for silver colors
+  if (style.color === "#CCCCCC" || style.color === "#C0C0C0") {
+    const textWidth = ctx.measureText(upperText).width;
+    const gradient = ctx.createLinearGradient(
+      x - textWidth / 2, y - 20,
+      x + textWidth / 2, y + 20
+    );
+    gradient.addColorStop(0, "#FFFFFF");
+    gradient.addColorStop(0.5, "#CCCCCC");
+    gradient.addColorStop(1, "#999999");
+    fillStyle = gradient;
+  }
+
+  ctx.fillStyle = fillStyle;
+  ctx.fillText(upperText, x, y);
 }

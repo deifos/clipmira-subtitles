@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProcessingOverlay } from "@/components/ui/processing-overlay";
 import { useTranscription, STATUS_MESSAGES } from "@/hooks/useTranscription";
-import { useVideoDownloadMediaBunnyV2 } from "@/hooks/useVideoDownloadMediaBunnyV2";
+import { useVideoDownloadMediaBunny } from "@/hooks/useVideoDownloadMediaBunny";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Default subtitle style
@@ -61,7 +61,7 @@ export default function Home() {
     resetTranscription,
   } = useTranscription();
 
-  const { downloadVideo, isProcessing: isDownloadProcessing, progress: downloadProgress, status: downloadStatus } = useVideoDownloadMediaBunnyV2({
+  const { downloadVideo, isProcessing: isDownloadProcessing, progress: downloadProgress, status: downloadStatus } = useVideoDownloadMediaBunny({
     video: videoRef.current,
     transcriptChunks: result?.chunks || [],
     subtitleStyle,
