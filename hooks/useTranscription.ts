@@ -23,7 +23,7 @@ export const STATUS_MESSAGES: Record<TranscriptionStatus, string> = {
   loading: "Loading model...",
   extracting: "Extracting audio...",
   uploading: "Uploading video...",
-  transcribing: "Transcribing audio...",
+  transcribing: "Trying to understand your gibberish...",
   processing: "Processing video...",
   ready: "Ready",
 };

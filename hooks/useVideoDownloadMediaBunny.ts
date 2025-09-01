@@ -16,6 +16,7 @@ import {
   QUALITY_VERY_HIGH
 } from 'mediabunny';
 import { SubtitleStyle } from '@/components/ui/subtitle-styling';
+import { processTranscriptChunks } from '@/lib/utils';
 
 // Types
 interface TranscriptChunk {
@@ -140,9 +141,24 @@ export function useVideoDownloadMediaBunny({
         videoSampleSink = new VideoSampleSink(originalVideoTrack);
       }
 
-      // Filter enabled chunks
-      const enabledChunks = transcriptChunks.filter(chunk => !chunk.disabled);
-      console.log(`Processing ${enabledChunks.length} subtitle chunks`);
+      // Process chunks according to mode (word/phrase) and filter enabled ones
+      const processedChunks = processTranscriptChunks({ chunks: transcriptChunks }, mode);
+      const enabledChunks = processedChunks.filter(chunk => {
+        if (mode === "phrase" && chunk.words) {
+          // For phrase mode, check if any word in the phrase is disabled
+          return !chunk.words.some(word => 
+            transcriptChunks.find(originalChunk => 
+              originalChunk.timestamp[0] === word.timestamp[0] && 
+              originalChunk.timestamp[1] === word.timestamp[1]
+            )?.disabled
+          );
+        } else {
+          // For word mode, use the chunk's disabled status directly
+          return !chunk.disabled;
+        }
+      });
+      
+      console.log(`Processing ${enabledChunks.length} ${mode} chunks (from ${transcriptChunks.length} original chunks)`);
 
       const totalFrames = Math.ceil(duration * fps);
       setStatus('Rendering video frames...');

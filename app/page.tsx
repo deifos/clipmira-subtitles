@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useMemo } from "react";
+import { useRef, useState, useCallback } from "react";
 import { VideoUpload } from "@/components/ui/video-upload";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -133,7 +133,7 @@ export default function Home() {
         {/* Header */}
         <header className="w-full py-6 border-b border-border/20">
           <div className="container mx-auto px-4 md:px-6 text-center">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">Brutalist Subtitle Generator</h1>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">Based Subtitles</h1>
             <p className="text-muted-foreground text-lg">100% local powered by transformers.js</p>
           </div>
         </header>
@@ -353,7 +353,7 @@ export default function Home() {
       <section className="w-full bg-gradient-to-r from-primary/10 to-primary/5 py-20">
         <div className="container mx-auto px-4 md:px-6 flex flex-col items-center text-center space-y-8">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
-            Brutalist <span className="text-primary">Subtitle Generator</span>
+            Based Subtitles
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl">
             Transform your videos with accurate, customizable subtitles powered

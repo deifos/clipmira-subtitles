@@ -91,7 +91,19 @@ export function VideoCaption({
       setIsAnimating(true);
       setIsSettling(true);
     }
-  }, [currentChunks, currentText]); // Animation removed
+  }, [currentChunks, currentText]);
+
+  // Separate effect to ensure immediate style updates 
+  useEffect(() => {
+    // Force re-render when style changes by resetting animation state
+    if (currentText) {
+      setIsAnimating(false);
+      setTimeout(() => {
+        setIsAnimating(true);
+        setIsSettling(true);
+      }, 10);
+    }
+  }, [style]);
 
   if (currentChunks.length === 0) return null;
 
