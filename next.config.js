@@ -1,12 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: [
-    '@remotion/bundler',
-    '@remotion/renderer',
-    '@remotion/cli',
-  ],
   webpack: (config, { isServer }) => {
-    // Exclude ONNX runtime and Remotion packages from client-side bundling
+    // Exclude ONNX runtime from client-side bundling (for transformers.js)
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -20,9 +15,6 @@ const nextConfig = {
       
       config.externals = [
         ...config.externals,
-        '@remotion/bundler',
-        '@remotion/renderer',
-        '@remotion/cli',
         'onnxruntime-node',
       ];
     }
