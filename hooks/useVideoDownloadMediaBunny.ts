@@ -370,16 +370,19 @@ function renderTextLine(
     ctx.restore();
   }
 
-  // Draw border/stroke with proper scaling
+  // Draw border/stroke with adjusted scaling for better visual match with preview
   if (style.borderWidth > 0) {
     ctx.strokeStyle = style.borderColor;
-    ctx.lineWidth = style.borderWidth * baseScale;
+    // Canvas strokeText renders thicker than CSS WebkitTextStroke at the same pixel width
+    // Use a reduced scaling factor to better match the visual appearance
+    const borderScale = baseScale * 0.6; // Reduce by 40% to match WebkitTextStroke appearance
+    ctx.lineWidth = style.borderWidth * borderScale;
     ctx.strokeText(upperText, x, y);
-    console.log(`Rendering border: ${style.borderWidth * baseScale}px ${style.borderColor} for "${upperText}"`);
+    console.log(`Rendering border: ${style.borderWidth * borderScale}px ${style.borderColor} for "${upperText}" (baseScale: ${baseScale})`);
   }
 
   // Draw main text with proper color handling
-  let fillStyle = style.color;
+  let fillStyle: string | CanvasGradient = style.color;
   
   // Handle metallic gradient for silver colors
   if (style.color === "#CCCCCC" || style.color === "#C0C0C0") {

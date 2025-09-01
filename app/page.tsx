@@ -58,8 +58,6 @@ export default function Home() {
     result,
     progress,
     setResult,
-    setStatus,
-    setProgress,
     handleVideoSelect,
     resetTranscription,
   } = useTranscription();
@@ -100,11 +98,12 @@ export default function Home() {
     setCurrentTime(time);
   }, []);
 
-  const handleModeChange = useCallback((newMode: "word" | "phrase") => {
-    setMode(newMode);
+  const handleModeChange = useCallback((value: string) => {
+    setMode(value as "word" | "phrase");
   }, []);
 
-  const handleRatioChange = useCallback((newRatio: "16:9" | "9:16") => {
+  const handleRatioChange = useCallback((value: string) => {
+    const newRatio = value as "16:9" | "9:16";
     setRatio(newRatio);
     // Reset zoom when switching to landscape
     if (newRatio === "16:9") {
@@ -181,7 +180,7 @@ export default function Home() {
                       {/* Portrait Zoom Control - Below the tabs */}
                       {ratio === "9:16" && (
                         <Button
-                          variant={zoomPortrait ? "default" : "outline"}
+                          variant={zoomPortrait ? "default" : "neutral"}
                           size="sm"
                           onClick={() => handleZoomPortraitChange(!zoomPortrait)}
                           className="flex items-center gap-2"
