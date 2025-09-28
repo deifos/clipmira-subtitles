@@ -538,7 +538,8 @@ function renderTextLine(
   if (style.borderWidth > 0) {
     ctx.save();
     ctx.strokeStyle = style.borderColor;
-    ctx.lineWidth = style.borderWidth;
+    const strokeWidth = Math.max(0.5, style.borderWidth * baseScale);
+    ctx.lineWidth = strokeWidth;
     ctx.lineJoin = 'round';
     ctx.miterLimit = 2;
     ctx.strokeText(upperText, x, y);
@@ -563,10 +564,12 @@ function renderTextLine(
 
   ctx.save();
   if (style.dropShadowIntensity > 0) {
-    ctx.shadowColor = `rgba(0,0,0,${Math.min(1, style.dropShadowIntensity)})`;
-    ctx.shadowBlur = Math.max(2, style.dropShadowIntensity * 4);
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
+    const shadowOpacity = Math.min(1, style.dropShadowIntensity);
+    ctx.shadowColor = `rgba(0,0,0,${shadowOpacity})`;
+    ctx.shadowBlur = Math.max(2, style.dropShadowIntensity * 4 * baseScale);
+    const shadowOffset = 2 * baseScale;
+    ctx.shadowOffsetX = shadowOffset;
+    ctx.shadowOffsetY = shadowOffset;
   } else {
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
@@ -674,7 +677,7 @@ function drawWordText(
   if (style.borderWidth > 0) {
     ctx.save();
     ctx.strokeStyle = style.borderColor;
-    const scaledBorderWidth = style.borderWidth / scale;
+    const scaledBorderWidth = Math.max(0.5, (style.borderWidth * baseScale) / Math.max(scale, 0.001));
     ctx.lineWidth = scaledBorderWidth;
     ctx.translate(centerX, centerY);
     ctx.scale(scale, scale);
@@ -703,10 +706,12 @@ function drawWordText(
   ctx.save();
   // Use canvas shadow with blur to resemble CSS drop-shadow in preview
   if (style.dropShadowIntensity > 0) {
-    ctx.shadowColor = `rgba(0,0,0,${Math.min(1, style.dropShadowIntensity)})`;
-    ctx.shadowBlur = Math.max(2, style.dropShadowIntensity * 5);
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
+    const shadowOpacity = Math.min(1, style.dropShadowIntensity);
+    ctx.shadowColor = `rgba(0,0,0,${shadowOpacity})`;
+    ctx.shadowBlur = Math.max(2, style.dropShadowIntensity * 5 * baseScale);
+    const shadowOffset = 2 * baseScale;
+    ctx.shadowOffsetX = shadowOffset;
+    ctx.shadowOffsetY = shadowOffset;
   } else {
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
