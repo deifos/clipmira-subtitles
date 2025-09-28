@@ -9,6 +9,7 @@ import {
   BufferTarget,
   BlobSource,
   VideoSampleSink,
+  VideoSample,
   ALL_FORMATS,
   QUALITY_HIGH,
   QUALITY_MEDIUM,
@@ -183,6 +184,17 @@ export function useVideoDownloadMediaBunny({
       const totalFrames = Math.ceil(duration * fps);
       setStatus('Rendering video frames...');
 
+      const timestampIterator = (async function* () {
+        for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+          yield frameIndex / fps;
+        }
+      })();
+
+      const sampleIterator = videoSampleSink
+        ? videoSampleSink.samplesAtTimestamps(timestampIterator)
+        : null;
+      let iteratorResult: IteratorResult<VideoSample | null> | undefined;
+
       // Render each frame
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
         if (cancelContextRef.current.cancelRequested) {
@@ -195,18 +207,22 @@ export function useVideoDownloadMediaBunny({
 
         // Update progress (convert to percentage 0-100)
         const progressPercent = Math.min(100, (frameIndex / totalFrames) * 100);
-        setProgress(progressPercent);
-        setStatus(`Rendering: ${Math.round(time)}s / ${Math.round(duration)}s (${Math.round(progressPercent)}%)`);
+        if (frameIndex % 3 === 0 || frameIndex === totalFrames - 1) {
+          setProgress(progressPercent);
+          setStatus(`Rendering: ${Math.round(time)}s / ${Math.round(duration)}s (${Math.round(progressPercent)}%)`);
+        }
 
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw video frame
-        if (videoSampleSink) {
+        // Draw video frame using iterator to avoid repeated decoder setup
+        if (videoSampleSink && sampleIterator) {
           try {
-            const sample = await videoSampleSink.getSample(time);
+            iteratorResult = await sampleIterator.next();
+            const sample = iteratorResult.value ?? null;
             if (sample) {
               sample.draw(ctx, 0, 0, canvas.width, canvas.height);
+              sample.close();
             }
           } catch (error) {
             console.warn(`Failed to get video sample at time ${time}:`, error);
@@ -239,6 +255,10 @@ export function useVideoDownloadMediaBunny({
           }
           throw error;
         }
+      }
+
+      if (sampleIterator && sampleIterator.return) {
+        await sampleIterator.return();
       }
 
       // Finalize export
