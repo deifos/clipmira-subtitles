@@ -140,7 +140,6 @@ export function processTranscriptChunks(
     }
 
     const timeSinceLastWord = start - currentGroup.end;
-    const currentDuration = currentGroup.end - currentGroup.start;
     const wouldExceedWordLimit = currentGroup.texts.length >= MAX_PHRASE_WORDS;
     const wouldExceedDuration = end - currentGroup.start > MAX_PHRASE_DURATION;
     const crossesDisabledBoundary = chunkDisabled !== currentGroup.disabled;

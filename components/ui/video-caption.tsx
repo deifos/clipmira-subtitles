@@ -2,7 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import { SubtitleStyle } from "./subtitle-styling";
-import { processTranscriptChunks } from "@/lib/utils";
+import {
+  processTranscriptChunks,
+  type ProcessedChunk,
+  type ProcessedWord,
+} from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface VideoCaptionProps {
@@ -32,10 +36,9 @@ export function VideoCaption({
   ratio,
 }: VideoCaptionProps) {
   const [isAnimating, setIsAnimating] = useState(false);
-  const [isSettling, setIsSettling] = useState(false);
   const [currentText, setCurrentText] = useState("");
 
-  const processedChunks = processTranscriptChunks(transcript, mode);
+  const processedChunks: ProcessedChunk[] = processTranscriptChunks(transcript, mode);
   
   // Filter out disabled chunks for playback preview
   const enabledChunks = processedChunks.filter((chunk) => {
@@ -64,10 +67,10 @@ export function VideoCaption({
   );
 
   // For phrase mode, find the current word within the phrase
-  const getCurrentWordInPhrase = (chunk: any) => {
-    if (mode !== "phrase" || !chunk.words) return null;
+  const getCurrentWordInPhrase = (chunk: ProcessedChunk): ProcessedWord | undefined => {
+    if (mode !== "phrase" || !chunk.words) return undefined;
     return chunk.words.find(
-      (word: any) =>
+      (word) =>
         currentTime >= word.timestamp[0] && currentTime <= word.timestamp[1]
     );
   };
@@ -81,7 +84,6 @@ export function VideoCaption({
     if (text !== currentText) {
       // Reset animation states
       setIsAnimating(false);
-      setIsSettling(false);
 
       // Set new text
       setCurrentText(text);
@@ -89,7 +91,6 @@ export function VideoCaption({
       // Animation removed - not supported by FFmpeg drawtext
       // Just show the text immediately
       setIsAnimating(true);
-      setIsSettling(true);
     }
   }, [currentChunks, currentText]);
 
@@ -100,10 +101,9 @@ export function VideoCaption({
       setIsAnimating(false);
       setTimeout(() => {
         setIsAnimating(true);
-        setIsSettling(true);
       }, 10);
     }
-  }, [style]);
+  }, [style, currentText]);
 
   if (currentChunks.length === 0) return null;
 
@@ -118,7 +118,7 @@ export function VideoCaption({
 
     return (
       <span>
-        {currentChunk.words.map((word: any, index: number) => {
+        {currentChunk.words.map((word: ProcessedWord, index: number) => {
           const isCurrentWord =
             currentWordInPhrase &&
             word.text === currentWordInPhrase.text &&
@@ -186,16 +186,6 @@ export function VideoCaption({
   }
 
   // Animation states - more subtle with shake
-  const scale = !isAnimating ? 0 : isSettling ? 1 : 1.08;
-  const translateY = !isAnimating ? 25 : isSettling ? 0 : -5;
-  const translateX = !isAnimating
-    ? 0
-    : isSettling
-    ? 0
-    : Math.random() > 0.5
-    ? 3
-    : -3; // Add a slight random shake
-
   return (
     <div
       className={cn(

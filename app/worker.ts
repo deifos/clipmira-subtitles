@@ -32,7 +32,7 @@ class PipelineSingleton {
   }
 
   static async getInstance(
-    progress_callback?: ((progress: any) => void),
+    progress_callback?: (progress: { status?: string; data?: unknown; loaded?: number; total?: number; progress?: number }) => void,
     device: DeviceType = "webgpu"
   ): Promise<AutomaticSpeechRecognitionPipeline> {
     if (!this.instance) {
@@ -51,7 +51,9 @@ class PipelineSingleton {
 
 let activeDevice: DeviceType | null = null;
 let loadPromise: Promise<void> | null = null;
-let transcriptionPromise: Promise<any> | null = null;
+type TranscriptionResult = Awaited<ReturnType<AutomaticSpeechRecognitionPipeline>>;
+
+let transcriptionPromise: Promise<TranscriptionResult> | null = null;
 
 // Handle messages from the main thread - simplified like sample app
 self.addEventListener("message", async (e: MessageEvent) => {
