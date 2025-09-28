@@ -300,9 +300,9 @@ export function SubtitleStyling({
       fontWeight: style.fontWeight,
       color: style.color,
       WebkitTextStroke:
-        style.borderWidth > 0 ? `${Math.max(0.5, style.borderWidth * 1.5)}px ${style.borderColor}` : "none",
+        style.borderWidth > 0 ? `${Math.max(0.5, style.borderWidth)}px ${style.borderColor}` : "none",
       letterSpacing: "0.05em",
-      filter: `drop-shadow(2px 2px ${Math.max(2, style.dropShadowIntensity * 7)}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
+      filter: `drop-shadow(2px 2px ${Math.max(2, style.dropShadowIntensity * 4)}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
       borderRadius: "0.5rem",
       transition: "all 0.2s ease",
     };

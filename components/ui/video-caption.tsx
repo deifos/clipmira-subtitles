@@ -111,9 +111,37 @@ export function VideoCaption({
   const text = currentChunk.text;
   const currentWordInPhrase = getCurrentWordInPhrase(currentChunk);
 
+  const isMetallicColor = style.color === "#CCCCCC" || style.color === "#C0C0C0";
+  const previewStrokeWidth = style.borderWidth > 0 ? Math.max(0.5, style.borderWidth) : 0;
+  const previewStroke = previewStrokeWidth > 0 ? `${previewStrokeWidth}px ${style.borderColor}` : "none";
+  const previewFilter = `drop-shadow(2px 2px ${Math.max(
+    2,
+    style.dropShadowIntensity * 4
+  )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`;
+
+  const baseTypographyStyles: React.CSSProperties = {
+    color: style.color,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    WebkitTextStroke: previewStroke,
+    filter: previewFilter,
+  };
+
+  const metallicTypographyStyles: React.CSSProperties = isMetallicColor
+    ? {
+        background: "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
+        WebkitBackgroundClip: "text",
+        WebkitTextFillColor: "transparent",
+      }
+    : {};
+
   const renderPhraseWithHighlight = () => {
     if (mode !== "phrase" || !currentChunk.words) {
-      return <span>{text}</span>;
+      return (
+        <span style={{ ...baseTypographyStyles, ...metallicTypographyStyles }}>
+          {text}
+        </span>
+      );
     }
 
     return (
@@ -125,6 +153,8 @@ export function VideoCaption({
             word.timestamp[0] === currentWordInPhrase.timestamp[0];
 
           const baseWordStyles: React.CSSProperties = {
+            ...baseTypographyStyles,
+            ...metallicTypographyStyles,
             display: "inline-block",
             transition: "transform 0.18s ease, background-color 0.18s ease",
             padding: "0 0.15em",
@@ -136,12 +166,15 @@ export function VideoCaption({
           const activeWordStyles: React.CSSProperties =
             isCurrentWord && (style.wordEmphasisEnabled ?? true)
             ? {
+                ...baseTypographyStyles,
                 transform: "scale(1.18)",
                 backgroundColor: "rgba(0, 0, 0, 0.65)",
                 color:
                   style.backgroundColor && style.backgroundColor !== "transparent"
                     ? style.color
                     : "#FFFFFF",
+                WebkitBackgroundClip: "initial",
+                WebkitTextFillColor: "inherit",
               }
             : {};
 
@@ -217,102 +250,31 @@ export function VideoCaption({
           {mode === "phrase" && shouldSplitText ? (
             // For phrase mode with split text, we need to handle highlighting per line
             <>
-              <span
-                style={{
-                  color: style.color,
-                  textTransform: "uppercase",
-                  letterSpacing: "normal",
-                  ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
-                    ? {
-                        background:
-                          "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                      }
-                    : {}),
-                  textShadow: "none",
-                  WebkitTextStroke:
-                    style.borderWidth > 0
-                      ? `${style.borderWidth}px ${style.borderColor}`
-                      : "none",
-                  filter: `drop-shadow(2px 2px ${Math.max(
-                    2,
-                    style.dropShadowIntensity * 5
-                  )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
-                }}
-              >
+              <span style={{ ...baseTypographyStyles, ...metallicTypographyStyles }}>
                 {line1}
               </span>
               {line2 && (
-                <span
-                  style={{
-                    color: style.color,
-                    textTransform: "uppercase",
-                    letterSpacing: "normal",
-                    ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
-                      ? {
-                          background:
-                            "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
-                          WebkitBackgroundClip: "text",
-                          WebkitTextFillColor: "transparent",
-                        }
-                      : {}),
-                    textShadow: "none",
-                    WebkitTextStroke:
-                      style.borderWidth > 0
-                        ? `${style.borderWidth}px ${style.borderColor}`
-                        : "none",
-                    filter: `drop-shadow(2px 2px ${Math.max(
-                      2,
-                      style.dropShadowIntensity * 5
-                    )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
-                  }}
-                >
+                <span style={{ ...baseTypographyStyles, ...metallicTypographyStyles }}>
                   {line2}
                 </span>
               )}
             </>
           ) : (
             // Single line or word mode - use highlighting
-            <span
-              style={{
-                color: style.color,
-                textTransform: "uppercase",
-                letterSpacing: "normal",
-                ...(style.color === "#CCCCCC" || style.color === "#C0C0C0"
-                  ? {
-                      background:
-                        "linear-gradient(to bottom, #FFFFFF 0%, #CCCCCC 50%, #999999 100%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                    }
-                  : {}),
-                textShadow: "none",
-                WebkitTextStroke:
-                  style.borderWidth > 0
-                    ? `${style.borderWidth}px ${style.borderColor}`
-                    : "none",
-                filter: `drop-shadow(2px 2px ${Math.max(
-                  2,
-                  style.dropShadowIntensity * 5
-                )}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
-              }}
-            >
-              {renderPhraseWithHighlight()}
-            </span>
+            renderPhraseWithHighlight()
           )}
         </div>
       </div>
-      
+
       {/* Add CSS animations for word highlighting */}
       <style jsx>{`
         @keyframes wordBounce {
-          0% { transform: scale(1); }
+{{ ... }}
           50% { transform: scale(1.2); }
           100% { transform: scale(1); }
         }
         
-        @keyframes wordPulse {
+{{ ... }}
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.8; transform: scale(1.1); }
         }
