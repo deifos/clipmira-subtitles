@@ -123,7 +123,8 @@ export function useTranscription() {
       case "download":
       case "done":
         if (typeof e.data.progress === "number") {
-          setProgress(Math.round(e.data.progress * 100));
+          const clamped = Math.max(0, Math.min(1, e.data.progress));
+          setProgress(Math.round(clamped * 100));
         }
         break;
     }
@@ -202,7 +203,7 @@ export function useTranscription() {
       );
 
       updateStatus("processing");
-      setProgress((prev) => Math.max(prev, 5));
+      setProgress(5);
 
       if (!modelReadyRef.current) {
         updateStatus("loading");
@@ -211,7 +212,7 @@ export function useTranscription() {
       await ensureModelLoaded();
 
       updateStatus("extracting");
-      setProgress((prev) => Math.max(prev, 30));
+      setProgress(30);
       const audioData = await extractAudioFromVideo(file);
 
       if (!worker.current) {
@@ -219,7 +220,7 @@ export function useTranscription() {
       }
 
       updateStatus("transcribing");
-      setProgress((prev) => Math.max(prev, 60));
+      setProgress(60);
       worker.current.postMessage({
         type: "run",
         data: {

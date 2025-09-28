@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   Input,
   Output,
@@ -43,6 +43,17 @@ const qualityMap = {
   very_high: QUALITY_VERY_HIGH,
 } as const;
 
+interface WordTiming {
+  text: string;
+  timestamp: [number, number];
+}
+
+type ProcessedChunk = ReturnType<typeof processTranscriptChunks>[number];
+
+function isPhraseChunk(chunk: ProcessedChunk): chunk is ProcessedChunk & { words: WordTiming[] } {
+  return Array.isArray((chunk as { words?: WordTiming[] }).words);
+}
+
 export function useVideoDownloadMediaBunny({
   video,
   transcriptChunks,
@@ -55,6 +66,11 @@ export function useVideoDownloadMediaBunny({
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<string>('');
+  const cancelContextRef = useRef<{
+    cancelRequested: boolean;
+    output: Output | null;
+    videoSource: CanvasSource | null;
+  }>({ cancelRequested: false, output: null, videoSource: null });
 
   const downloadVideo = useCallback(async () => {
     if (!video?.src || transcriptChunks.length === 0) {
@@ -65,6 +81,11 @@ export function useVideoDownloadMediaBunny({
     setIsProcessing(true);
     setProgress(0);
     setStatus('Initializing MediaBunny...');
+    cancelContextRef.current.cancelRequested = false;
+    cancelContextRef.current.output = null;
+    cancelContextRef.current.videoSource = null;
+
+    let cancelled = false;
 
     try {
       // Create canvas matching video dimensions
@@ -94,12 +115,12 @@ export function useVideoDownloadMediaBunny({
 
       console.log(`Video duration: ${duration}s`);
 
-      // Setup output
       const outputFormat = format === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
       const output = new Output({
         format: outputFormat,
         target: new BufferTarget(),
       });
+      cancelContextRef.current.output = output;
 
       // Add video track
       const videoSource = new CanvasSource(canvas, {
@@ -107,6 +128,7 @@ export function useVideoDownloadMediaBunny({
         bitrate: qualityMap[quality],
       });
       output.addVideoTrack(videoSource, { frameRate: fps });
+      cancelContextRef.current.videoSource = videoSource;
 
       // Handle audio if present
       let audioSource: AudioBufferSource | null = null;
@@ -116,17 +138,18 @@ export function useVideoDownloadMediaBunny({
           const arrayBuffer = await videoBlob.arrayBuffer();
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
-          
+
           audioSource = new AudioBufferSource({
             codec: format === 'webm' ? 'opus' : 'aac',
             bitrate: qualityMap[quality],
           });
           output.addAudioTrack(audioSource);
-          
+
           // Start output and add audio
           await output.start();
           await audioSource.add(audioBuffer);
           audioSource.close();
+          await audioContext.close();
         } catch (error) {
           console.warn('Audio processing failed:', error);
           await output.start();
@@ -137,38 +160,41 @@ export function useVideoDownloadMediaBunny({
 
       // Setup video sample sink for precise frame extraction
       let videoSampleSink: VideoSampleSink | null = null;
-      if (originalVideoTrack && await originalVideoTrack.canDecode()) {
+      if (originalVideoTrack && (await originalVideoTrack.canDecode())) {
         videoSampleSink = new VideoSampleSink(originalVideoTrack);
       }
 
       // Process chunks according to mode (word/phrase) and filter enabled ones
       const processedChunks = processTranscriptChunks({ chunks: transcriptChunks }, mode);
-      const enabledChunks = processedChunks.filter(chunk => {
-        if (mode === "phrase" && chunk.words) {
-          // For phrase mode, check if any word in the phrase is disabled
-          return !chunk.words.some(word => 
-            transcriptChunks.find(originalChunk => 
-              originalChunk.timestamp[0] === word.timestamp[0] && 
-              originalChunk.timestamp[1] === word.timestamp[1]
-            )?.disabled
-          );
-        } else {
-          // For word mode, use the chunk's disabled status directly
-          return !chunk.disabled;
+      const enabledChunks = processedChunks.filter((chunk) => {
+        if (mode === 'phrase' && isPhraseChunk(chunk)) {
+          return !chunk.words.some((word) => {
+            const originalChunk = transcriptChunks.find(
+              (candidate) =>
+                candidate.timestamp[0] === word.timestamp[0] &&
+                candidate.timestamp[1] === word.timestamp[1]
+            );
+            return originalChunk?.disabled;
+          });
         }
+        return !chunk.disabled;
       });
-      
-      console.log(`Processing ${enabledChunks.length} ${mode} chunks (from ${transcriptChunks.length} original chunks)`);
 
       const totalFrames = Math.ceil(duration * fps);
       setStatus('Rendering video frames...');
 
       // Render each frame
       for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
+        if (cancelContextRef.current.cancelRequested) {
+          cancelled = true;
+          setStatus('Cancelling download...');
+          break;
+        }
+
         const time = frameIndex / fps;
-        
+
         // Update progress (convert to percentage 0-100)
-        const progressPercent = (frameIndex / totalFrames) * 100;
+        const progressPercent = Math.min(100, (frameIndex / totalFrames) * 100);
         setProgress(progressPercent);
         setStatus(`Rendering: ${Math.round(time)}s / ${Math.round(duration)}s (${Math.round(progressPercent)}%)`);
 
@@ -188,7 +214,7 @@ export function useVideoDownloadMediaBunny({
         }
 
         // Find and render current subtitle
-        const currentChunk = enabledChunks.find(chunk => {
+        const currentChunk = enabledChunks.find((chunk) => {
           const [start, end] = chunk.timestamp;
           return time >= start && time <= end;
         });
@@ -197,50 +223,102 @@ export function useVideoDownloadMediaBunny({
           renderSubtitle(ctx, currentChunk, subtitleStyle, canvas, mode);
         }
 
-        // Add frame to video source
-        await videoSource.add(time, 1 / fps);
+        if (cancelContextRef.current.cancelRequested) {
+          cancelled = true;
+          setStatus('Cancelling download...');
+          break;
+        }
+
+        try {
+          await videoSource.add(time, 1 / fps);
+        } catch (error) {
+          if (cancelContextRef.current.cancelRequested) {
+            cancelled = true;
+            setStatus('Cancelling download...');
+            break;
+          }
+          throw error;
+        }
       }
 
       // Finalize export
-      videoSource.close();
-      setStatus('Finalizing video...');
-      await output.finalize();
-
-      // Download file
-      const bufferTarget = output.target as BufferTarget;
-      const buffer = bufferTarget.buffer;
-
-      if (!buffer) {
-        throw new Error('Failed to generate video buffer');
+      try {
+        videoSource.close();
+      } catch (closeError) {
+        console.warn('Failed to close video source:', closeError);
       }
 
-      const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
-      const blob = new Blob([buffer], { type: mimeType });
-      const url = URL.createObjectURL(blob);
+      if (cancelled) {
+        setProgress(0);
+        setStatus('Download cancelled');
+        console.log('Video export cancelled by user');
+      } else {
+        setStatus('Finalizing video...');
+        await output.finalize();
 
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `video_with_subtitles_${new Date().toISOString().replace(/[:.]/g, '-')}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+        // Download file
+        const bufferTarget = output.target as BufferTarget;
+        const buffer = bufferTarget.buffer;
 
-      setStatus('Export complete!');
-      setProgress(100);
-      console.log('Video export completed successfully');
+        if (!buffer) {
+          throw new Error('Failed to generate video buffer');
+        }
+
+        const mimeType = format === 'webm' ? 'video/webm' : 'video/mp4';
+        const blob = new Blob([buffer], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `video_with_subtitles_${new Date().toISOString().replace(/[:.]/g, '-')}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        setStatus('Export complete!');
+        setProgress(100);
+        console.log('Video export completed successfully');
+      }
 
     } catch (error) {
       console.error('MediaBunny video processing failed:', error);
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
+      cancelContextRef.current.output = null;
+      cancelContextRef.current.videoSource = null;
+      const wasCancelled = cancelled;
       setIsProcessing(false);
-      setTimeout(() => setProgress(0), 3000);
+      if (wasCancelled) {
+        setTimeout(() => setProgress(0), 500);
+      } else {
+        setTimeout(() => setProgress(0), 3000);
+      }
+      cancelContextRef.current.cancelRequested = false;
     }
   }, [video, transcriptChunks, subtitleStyle, mode, format, quality, fps]);
 
+  const cancelDownload = useCallback(() => {
+    if (!isProcessing) {
+      return;
+    }
+    cancelContextRef.current.cancelRequested = true;
+    setStatus('Cancelling download...');
+
+    if (cancelContextRef.current.videoSource) {
+      try {
+        cancelContextRef.current.videoSource.close();
+      } catch (error) {
+        console.warn('Failed to close video source during cancel:', error);
+      } finally {
+        cancelContextRef.current.videoSource = null;
+      }
+    }
+  }, [isProcessing]);
+
   return {
     downloadVideo,
+    cancelDownload,
     isProcessing,
     progress,
     status

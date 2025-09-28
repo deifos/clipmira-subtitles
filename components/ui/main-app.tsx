@@ -56,7 +56,13 @@ export function MainApp() {
     cancelTranscription,
   } = useTranscription();
 
-  const { downloadVideo, isProcessing: isDownloadProcessing, progress: downloadProgress, status: downloadStatus } = useVideoDownloadMediaBunny({
+  const {
+    downloadVideo,
+    cancelDownload,
+    isProcessing: isDownloadProcessing,
+    progress: downloadProgress,
+    status: downloadStatus,
+  } = useVideoDownloadMediaBunny({
     video: videoRef.current,
     transcriptChunks: result?.chunks || [],
     subtitleStyle,
@@ -243,7 +249,7 @@ export function MainApp() {
                 />
 
                 {result && (
-                  <div className="mt-4 flex flex-col items-center gap-2">
+                  <div className="mt-4 flex flex-col items-center gap-3">
                     <Button
                       onClick={downloadVideo}
                       className="flex items-center gap-2"
@@ -252,19 +258,22 @@ export function MainApp() {
                       <Download className="w-4 h-4" />
                       {isDownloadProcessing ? 'Processing...' : 'Download Video with Subtitles'}
                     </Button>
-                    
+
                     {isDownloadProcessing && (
-                      <div className="w-full max-w-md mt-3">
-                        <div className="flex justify-between text-sm text-muted-foreground mb-2">
+                      <div className="w-full max-w-md space-y-3">
+                        <div className="flex justify-between text-sm text-muted-foreground">
                           <span>{downloadStatus}</span>
                           <span>{Math.round(downloadProgress)}%</span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className="bg-blue-600 h-3 rounded-full transition-all duration-300" 
+                          <div
+                            className="bg-blue-600 h-3 rounded-full transition-all duration-300"
                             style={{ width: `${Math.max(0, Math.min(100, downloadProgress))}%` }}
                           ></div>
                         </div>
+                        <Button variant="neutral" size="sm" className="w-full" onClick={cancelDownload}>
+                          Stop download
+                        </Button>
                       </div>
                     )}
                   </div>
