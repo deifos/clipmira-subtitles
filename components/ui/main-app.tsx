@@ -32,6 +32,7 @@ const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
   borderWidth: 2,
   borderColor: "#000000", // Black border
   dropShadowIntensity: 0.9, // Default shadow intensity
+  wordEmphasisEnabled: true,
 };
 
 export function MainApp() {

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 
 export interface SubtitleStyle {
   fontFamily: string; // Note: FFmpeg uses single font file, family switching limited
@@ -20,6 +21,7 @@ export interface SubtitleStyle {
   borderWidth: number;
   borderColor: string;
   dropShadowIntensity: number;
+  wordEmphasisEnabled: boolean;
   // Removed: animated, wordHighlightEnabled, wordHighlightColor, wordHighlightAnimation, wordHighlightIntensity
   // FFmpeg drawtext doesn't support animations or word highlighting
 }
@@ -283,6 +285,10 @@ export function SubtitleStyling({
     onChange({ ...style, dropShadowIntensity: value });
   };
 
+  const handleWordEmphasisToggle = (value: boolean) => {
+    onChange({ ...style, wordEmphasisEnabled: value });
+  };
+
   const applyPreset = (preset: SubtitlePreset) => {
     onChange({ ...style, ...preset.style });
   };
@@ -313,6 +319,8 @@ export function SubtitleStyling({
 
     return base;
   }, [style, activePresetName]);
+
+  const wordEmphasisEnabled = style.wordEmphasisEnabled ?? true;
 
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
@@ -461,6 +469,20 @@ export function SubtitleStyling({
             <span>Subtle</span>
             <span>Strong</span>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border border-border/50 px-3 py-2">
+          <div>
+            <p className="text-sm font-medium">Active word emphasis</p>
+            <p className="text-xs text-muted-foreground">
+              Scale the spoken word and add a subtle dark backdrop.
+            </p>
+          </div>
+          <Switch
+            checked={wordEmphasisEnabled}
+            onCheckedChange={handleWordEmphasisToggle}
+            aria-label="Toggle active word emphasis"
+          />
         </div>
       </div>
 

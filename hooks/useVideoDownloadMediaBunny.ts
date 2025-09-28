@@ -24,6 +24,7 @@ interface TranscriptChunk {
   text: string;
   timestamp: [number, number];
   disabled?: boolean;
+  words?: WordTiming[];
 }
 
 interface UseVideoDownloadMediaBunnyProps {
@@ -236,7 +237,7 @@ export function useVideoDownloadMediaBunny({
         });
 
         if (currentChunk) {
-          renderSubtitle(ctx, currentChunk, subtitleStyle, canvas, mode);
+          renderSubtitle(ctx, currentChunk, subtitleStyle, canvas, mode, time);
         }
 
         if (cancelContextRef.current.cancelRequested) {
@@ -351,7 +352,8 @@ function renderSubtitle(
   chunk: TranscriptChunk,
   style: SubtitleStyle,
   canvas: HTMLCanvasElement,
-  mode: 'word' | 'phrase'
+  mode: 'word' | 'phrase',
+  currentTime: number
 ) {
   const displayText = chunk.text;
   const isVerticalVideo = canvas.height > canvas.width;
@@ -422,27 +424,27 @@ function renderSubtitle(
   const baseY = canvas.height - (canvas.height * (isVerticalVideo ? 0.08 : 0.16));
   
   // Text wrapping logic
-  const words = displayText.split(" ");
+  const wordsInText = displayText.split(" ");
   const maxWordsPerLine = isVerticalVideo ? 4 : 6;
-  const shouldSplitText = words.length > maxWordsPerLine;
-  
+  const shouldSplitText = wordsInText.length > maxWordsPerLine;
+
   let lines = [displayText];
+  let splitPoint: number | null = null;
   if (shouldSplitText) {
-    const midpoint = Math.ceil(words.length / 2);
-    let splitPoint = midpoint;
-    
-    // Find natural break points
-    for (let i = Math.max(2, midpoint - 2); i <= Math.min(words.length - 2, midpoint + 2); i++) {
-      if (/[,;:.!?]$/.test(words[i])) {
+    const midpoint = Math.ceil(wordsInText.length / 2);
+    splitPoint = midpoint;
+
+    for (let i = Math.max(2, midpoint - 2); i <= Math.min(wordsInText.length - 2, midpoint + 2); i++) {
+      if (/[,;:.!?]$/.test(wordsInText[i])) {
         splitPoint = i + 1;
         break;
       }
     }
-    
+
     lines = [
-      words.slice(0, splitPoint).join(" "),
-      words.slice(splitPoint).join(" ")
-    ];
+      wordsInText.slice(0, splitPoint).join(" "),
+      wordsInText.slice(splitPoint).join(" ")
+    ].filter(Boolean);
   }
 
   const lineHeight = finalFontSize * 1.4;
@@ -474,7 +476,38 @@ function renderSubtitle(
     ctx.fill();
   }
 
-  // Draw each line of text
+  const phraseWords = Array.isArray(chunk.words) ? chunk.words : undefined;
+  const canEmphasize =
+    style.wordEmphasisEnabled &&
+    mode === 'phrase' &&
+    phraseWords &&
+    phraseWords.length > 0 &&
+    Number.isFinite(currentTime);
+
+  if (canEmphasize) {
+    const lineWordGroups = splitPoint !== null && phraseWords
+      ? [
+          phraseWords.slice(0, splitPoint),
+          phraseWords.slice(splitPoint)
+        ].filter((group) => group.length > 0)
+      : [phraseWords];
+
+    lineWordGroups.forEach((wordGroup, index) => {
+      const lineY = startY + index * lineHeight;
+      renderPhraseLineWithEmphasis(
+        ctx,
+        wordGroup,
+        x,
+        lineY,
+        style,
+        baseScale,
+        currentTime,
+        finalFontSize
+      );
+    });
+    return;
+  }
+
   lines.forEach((line, index) => {
     const lineY = startY + index * lineHeight;
     renderTextLine(ctx, line, x, lineY, style, baseScale);
@@ -492,7 +525,6 @@ function renderTextLine(
 ) {
   const upperText = text.toUpperCase();
 
-  // Draw shadow with proper scaling
   if (style.dropShadowIntensity > 0) {
     ctx.save();
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
@@ -501,37 +533,170 @@ function renderTextLine(
     ctx.restore();
   }
 
-  // Draw border/stroke with scaling that matches preview appearance
   if (style.borderWidth > 0) {
+    ctx.save();
     ctx.strokeStyle = style.borderColor;
-    // Match the preview by using full baseScale with proper minimum values
-    // Canvas strokeText and CSS WebkitTextStroke have similar visual weight when properly scaled
     const scaledBorderWidth = style.borderWidth * baseScale;
-    // Ensure minimum visible thickness based on border setting
     const minimumBorder = style.borderWidth === 1 ? 2 : style.borderWidth === 2 ? 3 : scaledBorderWidth;
-    const finalBorderWidth = Math.max(minimumBorder, scaledBorderWidth);
-    ctx.lineWidth = finalBorderWidth;
+    ctx.lineWidth = Math.max(minimumBorder, scaledBorderWidth);
     ctx.strokeText(upperText, x, y);
-    console.log(`Rendering border: ${finalBorderWidth}px ${style.borderColor} for "${upperText}" (original: ${style.borderWidth}px, baseScale: ${baseScale})`);
+    ctx.restore();
   }
 
-  // Draw main text with proper color handling
   let fillStyle: string | CanvasGradient = style.color;
-  
-  // Handle metallic gradient for silver colors
-  if (style.color === "#CCCCCC" || style.color === "#C0C0C0") {
+  if (style.color === '#CCCCCC' || style.color === '#C0C0C0') {
     const textWidth = ctx.measureText(upperText).width;
-    const gradientHeight = 20 * baseScale; // Scale gradient height
+    const gradientHeight = 20 * baseScale;
     const gradient = ctx.createLinearGradient(
-      x - textWidth / 2, y - gradientHeight,
-      x + textWidth / 2, y + gradientHeight
+      x - textWidth / 2,
+      y - gradientHeight,
+      x + textWidth / 2,
+      y + gradientHeight
     );
-    gradient.addColorStop(0, "#FFFFFF");
-    gradient.addColorStop(0.5, "#CCCCCC");
-    gradient.addColorStop(1, "#999999");
+    gradient.addColorStop(0, '#FFFFFF');
+    gradient.addColorStop(0.5, '#CCCCCC');
+    gradient.addColorStop(1, '#999999');
     fillStyle = gradient;
   }
 
+  ctx.save();
   ctx.fillStyle = fillStyle;
   ctx.fillText(upperText, x, y);
+  ctx.restore();
+}
+
+function renderPhraseLineWithEmphasis(
+  ctx: CanvasRenderingContext2D,
+  words: WordTiming[],
+  centerX: number,
+  centerY: number,
+  style: SubtitleStyle,
+  baseScale: number,
+  currentTime: number,
+  finalFontSize: number
+) {
+  if (words.length === 0) {
+    return;
+  }
+
+  const uppercaseWords = words.map((word) => word.text.toUpperCase());
+  const spaceWidth = ctx.measureText(' ').width;
+  const scales = words.map((word) =>
+    currentTime >= word.timestamp[0] && currentTime <= word.timestamp[1] && style.wordEmphasisEnabled
+      ? 1.18
+      : 1
+  );
+
+  const baseWidths = uppercaseWords.map((value) => ctx.measureText(value).width);
+  const scaledWidths = baseWidths.map((width, index) => width * scales[index]);
+  const totalWidth = scaledWidths.reduce((total, width) => total + width, 0) + spaceWidth * Math.max(0, words.length - 1);
+  let cursor = centerX - totalWidth / 2;
+
+  const highlightPaddingX = finalFontSize * 0.25;
+  const highlightPaddingY = finalFontSize * 0.2;
+  const highlightRadius = 6 * baseScale;
+
+  words.forEach((word, index) => {
+    const displayText = uppercaseWords[index];
+    const scale = scales[index];
+    const scaledWidth = scaledWidths[index];
+    const baseWidth = baseWidths[index];
+    const isActive = scale > 1;
+    const wordCenterX = cursor + scaledWidth / 2;
+
+    if (isActive) {
+      const boxWidth = scaledWidth + highlightPaddingX * 2;
+      const boxHeight = finalFontSize * scale + highlightPaddingY * 2;
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+      ctx.beginPath();
+      ctx.roundRect(
+        wordCenterX - boxWidth / 2,
+        centerY - boxHeight / 2,
+        boxWidth,
+        boxHeight,
+        highlightRadius
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const fillColor = isActive && (!style.backgroundColor || style.backgroundColor === 'transparent')
+      ? '#FFFFFF'
+      : style.color;
+
+    drawWordText(
+      ctx,
+      displayText,
+      wordCenterX,
+      centerY,
+      style,
+      baseScale,
+      scale,
+      baseWidth,
+      fillColor
+    );
+
+    cursor += scaledWidth + spaceWidth;
+  });
+}
+
+function drawWordText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  centerX: number,
+  centerY: number,
+  style: SubtitleStyle,
+  baseScale: number,
+  scale: number,
+  baseWidth: number,
+  fillColor: string
+) {
+  const uppercase = text.toUpperCase();
+
+  if (style.dropShadowIntensity > 0) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    const shadowOffset = style.dropShadowIntensity * 2 * baseScale;
+    ctx.translate(centerX + shadowOffset, centerY + shadowOffset);
+    ctx.scale(scale, scale);
+    ctx.fillText(uppercase, 0, 0);
+    ctx.restore();
+  }
+
+  if (style.borderWidth > 0) {
+    ctx.save();
+    ctx.strokeStyle = style.borderColor;
+    const scaledBorderWidth = style.borderWidth * baseScale;
+    const minimumBorder = style.borderWidth === 1 ? 2 : style.borderWidth === 2 ? 3 : scaledBorderWidth;
+    ctx.lineWidth = Math.max(minimumBorder, scaledBorderWidth) / scale;
+    ctx.translate(centerX, centerY);
+    ctx.scale(scale, scale);
+    ctx.strokeText(uppercase, 0, 0);
+    ctx.restore();
+  }
+
+  let fillStyle: string | CanvasGradient = fillColor;
+  if (fillColor === style.color && (style.color === '#CCCCCC' || style.color === '#C0C0C0')) {
+    const scaledWidth = baseWidth * scale;
+    const gradientHeight = 20 * baseScale;
+    const gradient = ctx.createLinearGradient(
+      centerX - scaledWidth / 2,
+      centerY - gradientHeight,
+      centerX + scaledWidth / 2,
+      centerY + gradientHeight
+    );
+    gradient.addColorStop(0, '#FFFFFF');
+    gradient.addColorStop(0.5, '#CCCCCC');
+    gradient.addColorStop(1, '#999999');
+    fillStyle = gradient;
+  }
+
+  ctx.save();
+  ctx.fillStyle = fillStyle;
+  ctx.translate(centerX, centerY);
+  ctx.scale(scale, scale);
+  ctx.fillText(uppercase, 0, 0);
+  ctx.restore();
 }

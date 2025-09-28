@@ -111,7 +111,6 @@ export function VideoCaption({
   const text = currentChunk.text;
   const currentWordInPhrase = getCurrentWordInPhrase(currentChunk);
 
-  // Render function for phrase mode with word highlighting
   const renderPhraseWithHighlight = () => {
     if (mode !== "phrase" || !currentChunk.words) {
       return <span>{text}</span>;
@@ -119,24 +118,40 @@ export function VideoCaption({
 
     return (
       <span>
-        {currentChunk.words?.map((word: any, index: number) => {
-          const isCurrentWord = currentWordInPhrase && word.text === currentWordInPhrase.text && 
-                               word.timestamp[0] === currentWordInPhrase.timestamp[0];
-          
-          // Word highlighting removed - not supported by FFmpeg drawtext
+        {currentChunk.words.map((word: any, index: number) => {
+          const isCurrentWord =
+            currentWordInPhrase &&
+            word.text === currentWordInPhrase.text &&
+            word.timestamp[0] === currentWordInPhrase.timestamp[0];
+
+          const baseWordStyles: React.CSSProperties = {
+            display: "inline-block",
+            transition: "transform 0.18s ease, background-color 0.18s ease",
+            padding: "0 0.15em",
+            borderRadius: "0.35em",
+            transform: "scale(1)",
+            backgroundColor: "transparent",
+          };
+
+          const activeWordStyles: React.CSSProperties =
+            isCurrentWord && (style.wordEmphasisEnabled ?? true)
+            ? {
+                transform: "scale(1.18)",
+                backgroundColor: "rgba(0, 0, 0, 0.65)",
+                color:
+                  style.backgroundColor && style.backgroundColor !== "transparent"
+                    ? style.color
+                    : "#FFFFFF",
+              }
+            : {};
 
           return (
             <React.Fragment key={`${word.timestamp[0]}-${index}`}>
-              <span
-                style={{
-                  // Word highlighting styling removed - not supported by FFmpeg drawtext
-                  display: 'inline-block',
-                }}
-              >
+              <span style={{ ...baseWordStyles, ...activeWordStyles }}>
                 {word.text}
               </span>
               {index < (currentChunk.words?.length || 0) - 1 && (
-                <span style={{ display: 'inline-block', width: '0.5em' }}> </span>
+                <span style={{ display: "inline-block", width: "0.35em" }}> </span>
               )}
             </React.Fragment>
           );
