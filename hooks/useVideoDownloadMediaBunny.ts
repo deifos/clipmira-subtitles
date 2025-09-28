@@ -382,6 +382,15 @@ function renderSubtitle(
       'var(--font-bangers)': 'Bangers',
       'var(--font-montserrat)': 'Montserrat',
       'var(--font-inter)': 'Inter',
+      'var(--font-bebas-neue)': 'Bebas Neue',
+      'var(--font-poppins)': 'Poppins',
+      'var(--font-open-sans)': 'Open Sans',
+      'var(--font-oswald)': 'Oswald',
+      'var(--font-anton)': 'Anton',
+      'var(--font-fredoka)': 'Fredoka',
+      'var(--font-righteous)': 'Righteous',
+      'var(--font-nunito)': 'Nunito',
+      'var(--font-roboto)': 'Roboto',
     };
     
     // Find the CSS variable in the font family string
@@ -447,8 +456,10 @@ function renderSubtitle(
     ].filter(Boolean);
   }
 
-  const lineHeight = finalFontSize * 1.4;
-  const totalHeight = lines.length * lineHeight;
+  const lineHeight = finalFontSize;
+  const lineGap = 4 * baseScale;
+  const totalHeight =
+    lines.length * lineHeight + Math.max(0, lines.length - 1) * lineGap;
   const startY = baseY - totalHeight / 2 + lineHeight / 2;
 
   // Draw background if specified
@@ -466,7 +477,7 @@ function renderSubtitle(
 
     // Draw background perfectly centered with text
     const bgX = x - maxWidth / 2 - paddingX;
-    const bgY = startY - lineHeight / 2 - paddingY;
+    const bgY = baseY - totalHeight / 2 - paddingY;
     const bgWidth = maxWidth + paddingX * 2;
     const bgHeight = totalHeight + paddingY * 2;
 
@@ -493,7 +504,7 @@ function renderSubtitle(
       : [phraseWords];
 
     lineWordGroups.forEach((wordGroup, index) => {
-      const lineY = startY + index * lineHeight;
+      const lineY = startY + index * (lineHeight + lineGap);
       renderPhraseLineWithEmphasis(
         ctx,
         wordGroup,
@@ -509,7 +520,7 @@ function renderSubtitle(
   }
 
   lines.forEach((line, index) => {
-    const lineY = startY + index * lineHeight;
+    const lineY = startY + index * (lineHeight + lineGap);
     renderTextLine(ctx, line, x, lineY, style, baseScale);
   });
 }
@@ -524,21 +535,12 @@ function renderTextLine(
   baseScale: number = 1
 ) {
   const upperText = text.toUpperCase();
-
-  if (style.dropShadowIntensity > 0) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    const shadowOffset = style.dropShadowIntensity * 2 * baseScale;
-    ctx.fillText(upperText, x + shadowOffset, y + shadowOffset);
-    ctx.restore();
-  }
-
   if (style.borderWidth > 0) {
     ctx.save();
     ctx.strokeStyle = style.borderColor;
-    const scaledBorderWidth = style.borderWidth * baseScale;
-    const minimumBorder = style.borderWidth === 1 ? 2 : style.borderWidth === 2 ? 3 : scaledBorderWidth;
-    ctx.lineWidth = Math.max(minimumBorder, scaledBorderWidth);
+    ctx.lineWidth = style.borderWidth;
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
     ctx.strokeText(upperText, x, y);
     ctx.restore();
   }
@@ -560,6 +562,17 @@ function renderTextLine(
   }
 
   ctx.save();
+  if (style.dropShadowIntensity > 0) {
+    ctx.shadowColor = `rgba(0,0,0,${Math.min(1, style.dropShadowIntensity)})`;
+    ctx.shadowBlur = Math.max(2, style.dropShadowIntensity * 4);
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+  } else {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
   ctx.fillStyle = fillStyle;
   ctx.fillText(upperText, x, y);
   ctx.restore();
@@ -580,7 +593,8 @@ function renderPhraseLineWithEmphasis(
   }
 
   const uppercaseWords = words.map((word) => word.text.toUpperCase());
-  const spaceWidth = ctx.measureText(' ').width;
+  // Match preview spacer span width: 0.35em
+  const spaceWidth = 0.35 * finalFontSize;
   const scales = words.map((word) =>
     currentTime >= word.timestamp[0] && currentTime <= word.timestamp[1] && style.wordEmphasisEnabled
       ? 1.18
@@ -592,9 +606,10 @@ function renderPhraseLineWithEmphasis(
   const totalWidth = scaledWidths.reduce((total, width) => total + width, 0) + spaceWidth * Math.max(0, words.length - 1);
   let cursor = centerX - totalWidth / 2;
 
-  const highlightPaddingX = finalFontSize * 0.25;
-  const highlightPaddingY = finalFontSize * 0.2;
-  const highlightRadius = 6 * baseScale;
+  // Match inline span padding: ~0.15em horizontally, minimal vertical padding
+  const highlightPaddingX = finalFontSize * 0.15;
+  const highlightPaddingY = finalFontSize * 0.08;
+  const highlightRadius = finalFontSize * 0.35;
 
   words.forEach((word, index) => {
     const displayText = uppercaseWords[index];
@@ -655,24 +670,16 @@ function drawWordText(
 ) {
   const uppercase = text.toUpperCase();
 
-  if (style.dropShadowIntensity > 0) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    const shadowOffset = style.dropShadowIntensity * 2 * baseScale;
-    ctx.translate(centerX + shadowOffset, centerY + shadowOffset);
-    ctx.scale(scale, scale);
-    ctx.fillText(uppercase, 0, 0);
-    ctx.restore();
-  }
-
+  // Stroke closely matching WebKitTextStroke without over-thickening
   if (style.borderWidth > 0) {
     ctx.save();
     ctx.strokeStyle = style.borderColor;
-    const scaledBorderWidth = style.borderWidth * baseScale;
-    const minimumBorder = style.borderWidth === 1 ? 2 : style.borderWidth === 2 ? 3 : scaledBorderWidth;
-    ctx.lineWidth = Math.max(minimumBorder, scaledBorderWidth) / scale;
+    const scaledBorderWidth = style.borderWidth / scale;
+    ctx.lineWidth = scaledBorderWidth;
     ctx.translate(centerX, centerY);
     ctx.scale(scale, scale);
+    ctx.lineJoin = 'round';
+    ctx.miterLimit = 2;
     ctx.strokeText(uppercase, 0, 0);
     ctx.restore();
   }
@@ -694,6 +701,17 @@ function drawWordText(
   }
 
   ctx.save();
+  // Use canvas shadow with blur to resemble CSS drop-shadow in preview
+  if (style.dropShadowIntensity > 0) {
+    ctx.shadowColor = `rgba(0,0,0,${Math.min(1, style.dropShadowIntensity)})`;
+    ctx.shadowBlur = Math.max(2, style.dropShadowIntensity * 5);
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+  } else {
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
   ctx.fillStyle = fillStyle;
   ctx.translate(centerX, centerY);
   ctx.scale(scale, scale);

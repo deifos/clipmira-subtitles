@@ -46,119 +46,140 @@ export function formatVttTime(seconds: number): string {
     .padStart(3, "0")}`;
 }
 
+export interface ProcessedWord {
+  text: string;
+  timestamp: [number, number];
+  disabled?: boolean;
+}
+
+export interface ProcessedChunk {
+  text: string;
+  timestamp: [number, number];
+  disabled?: boolean;
+  words?: ProcessedWord[];
+}
+
+interface SourceTranscript {
+  chunks: Array<{
+    text: string;
+    timestamp: [number, number];
+    disabled?: boolean;
+  }>;
+}
+
 /**
  * Process transcript chunks according to the mode (word/phrase)
  */
 export function processTranscriptChunks(
-  transcript: {
-    chunks: Array<{
-      text: string;
-      timestamp: [number, number];
-      disabled?: boolean;
-    }>;
-  },
+  transcript: SourceTranscript,
   mode: "word" | "phrase" = "word"
-): Array<{
-  text: string;
-  timestamp: [number, number];
-  disabled?: boolean;
-  words?: Array<{
-    text: string;
-    timestamp: [number, number];
-  }>;
-}> {
+): ProcessedChunk[] {
   if (mode === "word") {
-    return transcript.chunks;
+    return transcript.chunks.map((chunk) => ({
+      text: chunk.text,
+      timestamp: chunk.timestamp,
+      disabled: chunk.disabled,
+    }));
   }
 
-  // For phrase mode, create shorter, more readable phrases
-  const processedChunks: Array<{
-    text: string;
-    timestamp: [number, number];
-    disabled?: boolean;
-    words: Array<{
-      text: string;
-      timestamp: [number, number];
-    }>;
-  }> = [];
+  const processedChunks: ProcessedChunk[] = [];
 
-  let currentGroup: {
+  type PhraseAccumulator = {
     texts: string[];
-    words: Array<{
-      text: string;
-      timestamp: [number, number];
-    }>;
+    words: ProcessedWord[];
     start: number;
     end: number;
-  } | null = null;
+    disabled: boolean;
+  } | null;
 
-  const MAX_PHRASE_WORDS = 6; // Limit phrases to 6 words max
-  const MAX_PHRASE_DURATION = 3.0; // Limit phrases to 3 seconds max
-  const MAX_GAP = 0.5; // Slightly larger gap tolerance
+  let currentGroup: PhraseAccumulator = null;
+
+  const MAX_PHRASE_WORDS = 6;
+  const MAX_PHRASE_DURATION = 3.0;
+  const MAX_GAP = 0.5;
+
+  const flushGroup = () => {
+    if (!currentGroup) {
+      return;
+    }
+
+    processedChunks.push({
+      text: currentGroup.texts.join(" "),
+      timestamp: [currentGroup.start, currentGroup.end],
+      disabled: currentGroup.disabled,
+      words: currentGroup.words,
+    });
+
+    currentGroup = null;
+  };
 
   transcript.chunks.forEach((chunk, index) => {
     const [start, end] = chunk.timestamp;
-    const text = chunk.text.trim();
+    const trimmedText = chunk.text.trim();
 
-    if (!text) return; // Skip empty chunks
-    // Skip disabled chunks
-    if (chunk.disabled) return;
+    if (!trimmedText) {
+      return;
+    }
 
-    const wordData = { text, timestamp: [start, end] as [number, number] };
+    const chunkDisabled = Boolean(chunk.disabled);
+    const wordData: ProcessedWord = {
+      text: trimmedText,
+      timestamp: [start, end],
+      disabled: chunk.disabled,
+    };
 
     if (!currentGroup) {
       currentGroup = {
-        texts: [text],
+        texts: [trimmedText],
         words: [wordData],
         start,
         end,
+        disabled: chunkDisabled,
+      };
+      return;
+    }
+
+    const timeSinceLastWord = start - currentGroup.end;
+    const currentDuration = currentGroup.end - currentGroup.start;
+    const wouldExceedWordLimit = currentGroup.texts.length >= MAX_PHRASE_WORDS;
+    const wouldExceedDuration = end - currentGroup.start > MAX_PHRASE_DURATION;
+    const crossesDisabledBoundary = chunkDisabled !== currentGroup.disabled;
+    const endsWithPunctuation = /[.!?]$/.test(
+      currentGroup.texts[currentGroup.texts.length - 1]
+    );
+    const endsWithCommaLike = /[,;:]$/.test(
+      currentGroup.texts[currentGroup.texts.length - 1]
+    );
+
+    const shouldEndPhrase =
+      crossesDisabledBoundary ||
+      timeSinceLastWord > MAX_GAP ||
+      wouldExceedWordLimit ||
+      wouldExceedDuration ||
+      endsWithPunctuation ||
+      (endsWithCommaLike && currentGroup.texts.length >= 3);
+
+    if (shouldEndPhrase) {
+      flushGroup();
+      currentGroup = {
+        texts: [trimmedText],
+        words: [wordData],
+        start,
+        end,
+        disabled: chunkDisabled,
       };
     } else {
-      const timeSinceLastWord = start - currentGroup.end;
-      const currentDuration = currentGroup.end - currentGroup.start;
-      const wouldExceedWordLimit = currentGroup.texts.length >= MAX_PHRASE_WORDS;
-      const wouldExceedDuration = (end - currentGroup.start) > MAX_PHRASE_DURATION;
-      
-      // Check if we should end the current phrase
-      const shouldEndPhrase = 
-        timeSinceLastWord > MAX_GAP || 
-        wouldExceedWordLimit || 
-        wouldExceedDuration ||
-        // End phrase at natural breaks (punctuation)
-        /[.!?]$/.test(currentGroup.texts[currentGroup.texts.length - 1]) ||
-        // End phrase at commas if we already have 3+ words
-        (/[,;:]$/.test(currentGroup.texts[currentGroup.texts.length - 1]) && currentGroup.texts.length >= 3);
-
-      if (shouldEndPhrase) {
-        // End current phrase and start a new one
-        processedChunks.push({
-          text: currentGroup.texts.join(" "),
-          timestamp: [currentGroup.start, currentGroup.end],
-          words: currentGroup.words,
-        });
-        currentGroup = {
-          texts: [text],
-          words: [wordData],
-          start,
-          end,
-        };
-      } else {
-        // Continue building current phrase
-        currentGroup.texts.push(text);
-        currentGroup.words.push(wordData);
-        currentGroup.end = end;
-      }
+      currentGroup.texts.push(trimmedText);
+      currentGroup.words.push(wordData);
+      currentGroup.end = end;
     }
 
-    // If this is the last chunk, add the current group
-    if (index === transcript.chunks.length - 1 && currentGroup) {
-      processedChunks.push({
-        text: currentGroup.texts.join(" "),
-        timestamp: [currentGroup.start, currentGroup.end],
-        words: currentGroup.words,
-      });
+    if (index === transcript.chunks.length - 1) {
+      flushGroup();
     }
   });
+
+  flushGroup();
 
   return processedChunks;
 }

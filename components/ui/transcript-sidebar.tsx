@@ -1,7 +1,14 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { formatTime, transcriptToSrt, transcriptToVtt, processTranscriptChunks } from "@/lib/utils";
+import {
+  formatTime,
+  transcriptToSrt,
+  transcriptToVtt,
+  processTranscriptChunks,
+  type ProcessedChunk,
+  type ProcessedWord,
+} from "@/lib/utils";
 import { Button } from "./button";
-import { Edit, EyeOff, Eye } from "lucide-react";
+import { Edit, Ban, Undo2 } from "lucide-react";
 
 interface TranscriptChunk {
   text: string;
@@ -39,8 +46,31 @@ export function TranscriptSidebar({
   const [currentActiveElement, setCurrentActiveElement] = useState<HTMLDivElement | null>(null);
 
   // Process transcript chunks based on the current mode
-  const displayChunks = useMemo(() => {
-    return processTranscriptChunks(transcript, mode);
+  const displayChunks: ProcessedChunk[] = useMemo(() => {
+    const processed = processTranscriptChunks(transcript, mode);
+
+    return processed.map((chunk, index) => {
+      if (mode === "phrase" && chunk.words) {
+        const everyWordDisabled = chunk.words.every((word) =>
+          transcript.chunks.some(
+            (originalChunk) =>
+              originalChunk.timestamp[0] === word.timestamp[0] &&
+              originalChunk.timestamp[1] === word.timestamp[1] &&
+              originalChunk.disabled
+          )
+        );
+
+        return {
+          ...chunk,
+          disabled: everyWordDisabled,
+        };
+      }
+
+      return {
+        ...chunk,
+        disabled: transcript.chunks[index]?.disabled ?? false,
+      };
+    });
   }, [transcript, mode]);
 
   // Add effect to scroll to active chunk when currentTime changes
@@ -174,15 +204,16 @@ export function TranscriptSidebar({
       // that make up this phrase
       const phraseToToggle = displayChunks[index];
       if (phraseToToggle.words) {
-        const isCurrentlyDisabled = phraseToToggle.words.some(word => 
-          transcript.chunks.find(chunk => 
-            chunk.timestamp[0] === word.timestamp[0] && 
-            chunk.timestamp[1] === word.timestamp[1]
+        const isCurrentlyDisabled = phraseToToggle.words.some((word: ProcessedWord) =>
+          transcript.chunks.find(
+            (chunk) =>
+              chunk.timestamp[0] === word.timestamp[0] &&
+              chunk.timestamp[1] === word.timestamp[1]
           )?.disabled
         );
 
-        const updatedChunks = transcript.chunks.map(originalChunk => {
-          const isPartOfPhrase = phraseToToggle.words!.some(phraseWord => 
+        const updatedChunks = transcript.chunks.map((originalChunk) => {
+          const isPartOfPhrase = phraseToToggle.words!.some((phraseWord) =>
             phraseWord.timestamp[0] === originalChunk.timestamp[0] &&
             phraseWord.timestamp[1] === originalChunk.timestamp[1]
           );
@@ -204,7 +235,7 @@ export function TranscriptSidebar({
       }
     } else {
       // For word mode, direct toggle
-      const updatedChunks = transcript.chunks.map((chunk, i) => 
+      const updatedChunks = transcript.chunks.map((chunk, i) =>
         i === index ? { ...chunk, disabled: !chunk.disabled } : chunk
       );
       
@@ -227,17 +258,9 @@ export function TranscriptSidebar({
             const [start, end] = chunk.timestamp;
             const isActive = start <= currentTime && currentTime <= end;
             const isEditing = editingIndex === i;
-            
-            
+
             // Check if this chunk is disabled
-            const isDisabled = mode === "phrase" 
-              ? chunk.words?.some(word => 
-                  transcript.chunks.find(originalChunk => 
-                    originalChunk.timestamp[0] === word.timestamp[0] && 
-                    originalChunk.timestamp[1] === word.timestamp[1]
-                  )?.disabled
-                )
-              : transcript.chunks[i]?.disabled;
+            const isDisabled = chunk.disabled ?? false;
 
             return (
               <div
@@ -322,12 +345,20 @@ export function TranscriptSidebar({
                           e.stopPropagation();
                           toggleChunkDisabled(i);
                         }}
-                        className={`p-1 ${isDisabled ? "text-green-600 hover:text-green-800" : "text-gray-500 hover:text-gray-700"}`}
+                        className={`p-1 ${
+                          isDisabled
+                            ? "text-emerald-600 hover:text-emerald-800"
+                            : "text-gray-500 hover:text-gray-700"
+                        }`}
                         title={isDisabled ? "Enable section" : "Disable section"}
                         size="icon"
                         variant="noShadow"
                       >
-                        {isDisabled ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                        {isDisabled ? (
+                          <Undo2 className="h-3 w-3" />
+                        ) : (
+                          <Ban className="h-3 w-3" />
+                        )}
                       </Button>
                     </div>
                   </div>

@@ -299,7 +299,6 @@ export function SubtitleStyling({
       fontSize: style.fontSize,
       fontWeight: style.fontWeight,
       color: style.color,
-      backgroundColor: style.backgroundColor,
       WebkitTextStroke:
         style.borderWidth > 0 ? `${style.borderWidth}px ${style.borderColor}` : "none",
       filter: `drop-shadow(2px 2px ${Math.max(2, style.dropShadowIntensity * 6)}px rgba(0, 0, 0, ${style.dropShadowIntensity}))`,
@@ -317,7 +316,10 @@ export function SubtitleStyling({
       };
     }
 
-    return base;
+    return {
+      ...base,
+      backgroundColor: style.backgroundColor,
+    };
   }, [style, activePresetName]);
 
   const wordEmphasisEnabled = style.wordEmphasisEnabled ?? true;
