@@ -274,17 +274,50 @@ function renderSubtitle(
   console.log(`Font: ${style.fontSize} -> ${finalFontSize} (scale: ${baseScale})`);
   console.log(`Style - Border: ${style.borderWidth}px ${style.borderColor}, Shadow: ${style.dropShadowIntensity}, BG: ${style.backgroundColor}`);
 
-  // Handle font family
+  // Handle font family - resolve CSS custom properties to actual font names
   let fontFamily = style.fontFamily;
   if (fontFamily.includes('var(')) {
-    const fallbackMatch = fontFamily.match(/,\s*(.+)$/);
-    fontFamily = fallbackMatch ? fallbackMatch[1] : 'Arial, sans-serif';
+    // Map CSS custom properties to actual font names that Canvas can use
+    const fontMappings: { [key: string]: string } = {
+      'var(--font-bangers)': 'Bangers',
+      'var(--font-montserrat)': 'Montserrat',
+      'var(--font-inter)': 'Inter',
+    };
+    
+    // Find the CSS variable in the font family string
+    for (const [cssVar, actualFont] of Object.entries(fontMappings)) {
+      if (fontFamily.includes(cssVar)) {
+        // Replace the CSS variable with the actual font name
+        fontFamily = fontFamily.replace(cssVar, actualFont);
+        break;
+      }
+    }
+    
+    // If no mapping found, extract fallback fonts
+    if (fontFamily.includes('var(')) {
+      const fallbackMatch = fontFamily.match(/,\s*(.+)$/);
+      fontFamily = fallbackMatch ? fallbackMatch[1] : 'Arial, sans-serif';
+    }
   }
 
-  // Set font properties
-  ctx.font = `${style.fontWeight} ${finalFontSize}px ${fontFamily}`;
+  // Set font properties with font loading check
+  const fontString = `${style.fontWeight} ${finalFontSize}px ${fontFamily}`;
+  ctx.font = fontString;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  
+  console.log(`Canvas font: "${fontString}" (resolved from "${style.fontFamily}")`);
+  
+  // Check if font is actually loaded by testing with document.fonts
+  if ('fonts' in document) {
+    const fontName = fontFamily.split(',')[0].trim().replace(/['"]/g, '');
+    const isLoaded = document.fonts.check(`${style.fontWeight} ${finalFontSize}px "${fontName}"`);
+    console.log(`Font "${fontName}" loaded:`, isLoaded);
+    
+    if (!isLoaded) {
+      console.warn(`Font "${fontName}" not loaded, canvas will use fallback`);
+    }
+  }
 
   // Calculate positioning
   const x = canvas.width / 2;
@@ -370,15 +403,18 @@ function renderTextLine(
     ctx.restore();
   }
 
-  // Draw border/stroke with adjusted scaling for better visual match with preview
+  // Draw border/stroke with scaling that matches preview appearance
   if (style.borderWidth > 0) {
     ctx.strokeStyle = style.borderColor;
-    // Canvas strokeText renders thicker than CSS WebkitTextStroke at the same pixel width
-    // Use a reduced scaling factor to better match the visual appearance
-    const borderScale = baseScale * 0.6; // Reduce by 40% to match WebkitTextStroke appearance
-    ctx.lineWidth = style.borderWidth * borderScale;
+    // Match the preview by using full baseScale with proper minimum values
+    // Canvas strokeText and CSS WebkitTextStroke have similar visual weight when properly scaled
+    const scaledBorderWidth = style.borderWidth * baseScale;
+    // Ensure minimum visible thickness based on border setting
+    const minimumBorder = style.borderWidth === 1 ? 2 : style.borderWidth === 2 ? 3 : scaledBorderWidth;
+    const finalBorderWidth = Math.max(minimumBorder, scaledBorderWidth);
+    ctx.lineWidth = finalBorderWidth;
     ctx.strokeText(upperText, x, y);
-    console.log(`Rendering border: ${style.borderWidth * borderScale}px ${style.borderColor} for "${upperText}" (baseScale: ${baseScale})`);
+    console.log(`Rendering border: ${finalBorderWidth}px ${style.borderColor} for "${upperText}" (original: ${style.borderWidth}px, baseScale: ${baseScale})`);
   }
 
   // Draw main text with proper color handling

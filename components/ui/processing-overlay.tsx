@@ -1,16 +1,21 @@
 import { Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 
 interface ProcessingOverlayProps {
   isVisible: boolean;
   statusMessage: string;
   progress: number;
+  canCancel?: boolean;
+  onCancel?: () => void;
 }
 
 export function ProcessingOverlay({
   isVisible,
   statusMessage,
   progress,
+  canCancel = false,
+  onCancel,
 }: ProcessingOverlayProps) {
   if (!isVisible) return null;
 
@@ -23,11 +28,14 @@ export function ProcessingOverlay({
           <div className="w-full space-y-3">
             <Progress value={progress} className="w-full h-3" />
             <p className="text-sm text-muted-foreground text-center font-medium">
-              {progress < 100
-                ? `${Math.round(progress)}% complete`
-                : "Processing complete"}
+              {`${Math.round(progress)}% complete`}
             </p>
           </div>
+          {canCancel && onCancel && (
+            <Button variant="default" onClick={onCancel} className="w-full">
+              Stop processing
+            </Button>
+          )}
         </div>
       </div>
     </div>

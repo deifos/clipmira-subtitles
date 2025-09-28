@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { extractAudioFromVideo } from "@/lib/audio-utils";
+
+type DeviceType = "webgpu" | "wasm";
 
 export type TranscriptionStatus =
   | "idle"
@@ -28,73 +30,159 @@ export const STATUS_MESSAGES: Record<TranscriptionStatus, string> = {
   ready: "Ready",
 };
 
+async function detectPreferredDevice(): Promise<DeviceType> {
+  if (typeof navigator === "undefined" || typeof (navigator as any).gpu === "undefined") {
+    return "wasm";
+  }
+
+  try {
+    const adapter = await (navigator as any).gpu.requestAdapter();
+    return adapter ? "webgpu" : "wasm";
+  } catch {
+    return "wasm";
+  }
+}
+
 export function useTranscription() {
-  const [status, setStatus] = useState<TranscriptionStatus>("idle");
+  const [status, setStatusState] = useState<TranscriptionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TranscriptionResult | null>(null);
   const [progress, setProgress] = useState(0);
+  const [device, setDevice] = useState<DeviceType>("wasm");
   const worker = useRef<Worker | null>(null);
+  const deviceRef = useRef<DeviceType>("wasm");
+  const modelReadyRef = useRef(false);
+  const modelLoadingPromiseRef = useRef<Promise<void> | null>(null);
+  const modelLoadResolveRef = useRef<(() => void) | null>(null);
+  const modelLoadRejectRef = useRef<((error: Error) => void) | null>(null);
+  const statusRef = useRef<TranscriptionStatus>("idle");
 
-  // Initialize worker
+  const updateStatus = useCallback((nextStatus: TranscriptionStatus) => {
+    statusRef.current = nextStatus;
+    setStatusState(nextStatus);
+  }, []);
+
   useEffect(() => {
-    // Create the worker only once
-    if (!worker.current) {
-      console.log("Creating new worker instance");
-      worker.current = new Worker(
-        new URL("../app/worker.ts", import.meta.url),
-        {
-          type: "module",
+    let cancelled = false;
+
+    detectPreferredDevice().then((preferredDevice) => {
+      if (cancelled) {
+        return;
+      }
+      setDevice(preferredDevice);
+      deviceRef.current = preferredDevice;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const workerMessageHandler = useCallback((e: MessageEvent) => {
+    switch (e.data.status) {
+      case "loading":
+        updateStatus("loading");
+        modelReadyRef.current = false;
+        break;
+
+      case "ready":
+        modelReadyRef.current = true;
+        if (statusRef.current === "loading") {
+          updateStatus("ready");
         }
-      );
-
-      // Simplified message handler like sample app
-      const onMessageReceived = (e: MessageEvent) => {
-        switch (e.data.status) {
-          case "loading":
-            setStatus("loading");
-            break;
-
-          case "ready":
-            setStatus("ready");
-            break;
-
-          case "complete":
-            setResult(e.data.result);
-            setStatus("ready");
-            setProgress(100);
-            break;
-
-          case "error":
-            setError(e.data.data);
-            setStatus("idle");
-            setProgress(0);
-            break;
-
-          // Handle model loading progress directly
-          case "progress":
-          case "initiate":
-          case "download":
-          case "done":
-            // Forward progress events for model loading
-            if (e.data.progress !== undefined) {
-              setProgress(Math.round(e.data.progress * 100));
-            }
-            break;
+        setProgress((prev) => Math.max(prev, 90));
+        if (modelLoadResolveRef.current) {
+          modelLoadResolveRef.current();
         }
-      };
+        modelLoadingPromiseRef.current = null;
+        modelLoadResolveRef.current = null;
+        modelLoadRejectRef.current = null;
+        break;
 
-      // Attach the callback function as an event listener
-      worker.current.addEventListener("message", onMessageReceived);
+      case "complete":
+        setResult(e.data.result);
+        updateStatus("ready");
+        setProgress(100);
+        break;
+
+      case "error":
+        setError(e.data.data);
+        updateStatus("idle");
+        setProgress(0);
+        modelReadyRef.current = false;
+        if (modelLoadRejectRef.current) {
+          modelLoadRejectRef.current(new Error(e.data.data));
+        }
+        modelLoadingPromiseRef.current = null;
+        modelLoadResolveRef.current = null;
+        modelLoadRejectRef.current = null;
+        break;
+
+      case "progress":
+      case "initiate":
+      case "download":
+      case "done":
+        if (typeof e.data.progress === "number") {
+          setProgress(Math.round(e.data.progress * 100));
+        }
+        break;
+    }
+  }, [updateStatus]);
+
+  const initializeWorker = useCallback(() => {
+    if (worker.current || typeof window === "undefined") {
+      return;
     }
 
-    // Define a cleanup function for when the component is unmounted
+    const newWorker = new Worker(new URL("../app/worker.ts", import.meta.url), {
+      type: "module",
+    });
+
+    newWorker.addEventListener("message", workerMessageHandler);
+    worker.current = newWorker;
+  }, [workerMessageHandler]);
+
+  useEffect(() => {
+    initializeWorker();
+
     return () => {
       if (worker.current) {
-        console.log("Cleaning up worker");
+        worker.current.removeEventListener("message", workerMessageHandler);
         worker.current.terminate();
         worker.current = null;
       }
     };
+  }, [initializeWorker, workerMessageHandler]);
+
+  const ensureModelLoaded = useCallback(async () => {
+    initializeWorker();
+
+    if (modelReadyRef.current) {
+      return;
+    }
+
+    if (!worker.current) {
+      throw new Error("Worker not initialized properly");
+    }
+
+    if (!modelLoadingPromiseRef.current) {
+      modelLoadingPromiseRef.current = new Promise<void>((resolve, reject) => {
+        modelLoadResolveRef.current = resolve;
+        modelLoadRejectRef.current = reject;
+      });
+
+      worker.current.postMessage({
+        type: "load",
+        data: { device: deviceRef.current },
+      });
+    }
+
+    await modelLoadingPromiseRef.current;
+  }, [initializeWorker]);
+
+  // Initialize worker
+  useEffect(() => {
+    modelReadyRef.current = false;
   }, []);
 
   const handleVideoSelect = async (file: File) => {
@@ -113,52 +201,31 @@ export function useTranscription() {
         file.type
       );
 
-      // Ensure worker exists
+      updateStatus("processing");
+      setProgress((prev) => Math.max(prev, 5));
+
+      if (!modelReadyRef.current) {
+        updateStatus("loading");
+      }
+
+      await ensureModelLoaded();
+
+      updateStatus("extracting");
+      setProgress((prev) => Math.max(prev, 30));
+      const audioData = await extractAudioFromVideo(file);
+
       if (!worker.current) {
         throw new Error("Worker not initialized properly");
       }
 
-      // Check if model needs to be loaded
-      if (status === null || status === "idle") {
-        setStatus("loading");
-        worker.current.postMessage({
-          type: "load",
-          data: { device: "wasm" }, // Using wasm for better compatibility
-        });
-        
-        // Wait for model to be ready
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Model loading timed out"));
-          }, 60000);
-
-          const readyHandler = (e: MessageEvent) => {
-            if (e.data.status === "ready") {
-              clearTimeout(timeout);
-              worker.current?.removeEventListener("message", readyHandler);
-              resolve();
-            } else if (e.data.status === "error") {
-              clearTimeout(timeout);
-              worker.current?.removeEventListener("message", readyHandler);
-              reject(new Error(e.data.data));
-            }
-          };
-
-          worker.current?.addEventListener("message", readyHandler);
-        });
-      }
-
-      // Extract audio from video
-      setStatus("extracting");
-      const audioData = await extractAudioFromVideo(file);
-
-      // Start transcription - simplified like sample app
-      setStatus("transcribing");
+      updateStatus("transcribing");
+      setProgress((prev) => Math.max(prev, 60));
       worker.current.postMessage({
         type: "run",
         data: {
           audio: audioData,
           language: "en",
+          device: deviceRef.current,
         },
       });
     } catch (err) {
@@ -167,8 +234,12 @@ export function useTranscription() {
         console.error("Error stack:", err.stack);
       }
       setError(err instanceof Error ? err.message : String(err));
-      setStatus("idle");
+      updateStatus("idle");
       setProgress(0);
+      modelReadyRef.current = false;
+      modelLoadingPromiseRef.current = null;
+      modelLoadResolveRef.current = null;
+      modelLoadRejectRef.current = null;
 
       // Reset worker on error
       if (worker.current) {
@@ -182,48 +253,32 @@ export function useTranscription() {
     // Reset states
     setError(null);
     setResult(null);
-    setStatus("idle");
+    updateStatus(modelReadyRef.current ? "ready" : "idle");
     setProgress(0);
 
-    // Recreate worker if needed
     if (!worker.current) {
-      worker.current = new Worker(
-        new URL("../app/worker.ts", import.meta.url),
-        {
-          type: "module",
-        }
-      );
-
-      worker.current.addEventListener("message", (e) => {
-        switch (e.data.status) {
-          case "loading":
-            setStatus("loading");
-            break;
-          case "ready":
-            setStatus("ready");
-            break;
-          case "complete":
-            setResult(e.data.result);
-            setStatus("ready");
-            setProgress(100);
-            break;
-          case "error":
-            setError(e.data.data);
-            setStatus("idle");
-            setProgress(0);
-            break;
-          case "progress":
-          case "initiate":
-          case "download":
-          case "done":
-            if (e.data.progress !== undefined) {
-              setProgress(Math.round(e.data.progress * 100));
-            }
-            break;
-        }
-      });
+      initializeWorker();
     }
   };
+
+  const cancelTranscription = useCallback(() => {
+    setError(null);
+    setResult(null);
+    updateStatus("idle");
+    setProgress(0);
+    modelReadyRef.current = false;
+    modelLoadingPromiseRef.current = null;
+    modelLoadResolveRef.current = null;
+    modelLoadRejectRef.current = null;
+
+    if (worker.current) {
+      worker.current.removeEventListener("message", workerMessageHandler);
+      worker.current.terminate();
+      worker.current = null;
+    }
+
+    initializeWorker();
+  }, [initializeWorker, updateStatus, workerMessageHandler]);
 
   return {
     status,
@@ -231,9 +286,10 @@ export function useTranscription() {
     result,
     progress,
     setResult,
-    setStatus,
+    setStatus: updateStatus,
     setProgress,
     handleVideoSelect,
     resetTranscription,
+    cancelTranscription,
   };
 }

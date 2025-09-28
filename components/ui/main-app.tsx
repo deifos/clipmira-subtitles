@@ -53,6 +53,7 @@ export function MainApp() {
     setResult,
     handleVideoSelect,
     resetTranscription,
+    cancelTranscription,
   } = useTranscription();
 
   const { downloadVideo, isProcessing: isDownloadProcessing, progress: downloadProgress, status: downloadStatus } = useVideoDownloadMediaBunny({
@@ -109,7 +110,9 @@ export function MainApp() {
   }, []);
 
   // Determine if we should show the loading overlay
-  const isProcessing = status !== "idle" && status !== "ready";
+  const isProcessing =
+    status !== "idle" && (status !== "ready" || (progress > 0 && progress < 100));
+  const statusMessage = STATUS_MESSAGES[status] ?? "Processing video...";
 
   return (
     <main className="flex min-h-screen flex-col relative">
@@ -305,8 +308,10 @@ export function MainApp() {
       {/* Processing Overlay */}
       <ProcessingOverlay
         isVisible={isProcessing}
-        statusMessage={STATUS_MESSAGES[status]}
+        statusMessage={statusMessage}
         progress={progress}
+        canCancel={status !== "idle" && status !== "ready"}
+        onCancel={cancelTranscription}
       />
 
       {/* Footer */}
